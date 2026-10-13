@@ -1,0 +1,15 @@
+.in-apps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.in-app { height: 236px; }
+.in-bottom { display: grid; grid-template-columns: 1fr 460px; gap: 16px; }
+.in-apps > *, .in-bottom > * { min-width: 0; }
+.in-repos { margin-top: auto; padding: 16px 20px; border-top: 1px solid var(--border); background: var(--soft); border-radius: 0 0 20px 20px; flex: none; }
+
+@media (max-width: 1200px) {
+  .in-apps { grid-template-columns: 1fr 1fr; }
+  .in-bottom { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .in-app { height: auto; }
+  .in-repos { flex-wrap: wrap; }
+  .in-repos .grow { display: none; }
+}

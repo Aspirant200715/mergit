@@ -6,9 +6,13 @@ import { NewRun } from "../screens/NewRun";
 import { Agents } from "../screens/Agents";
 import { ProofDetail } from "../screens/ProofDetail";
 import { Leaderboard } from "../screens/Leaderboard";
+import { Integrations } from "../screens/Integrations";
+import { Wallet } from "../screens/Wallet";
+import { SignIn } from "../screens/SignIn";
 import { NotFound } from "../screens/NotFound";
 
 export const router = createBrowserRouter([
+  { path: "/signin", element: <SignIn /> },
   {
     element: <AppShell />,
     children: [
@@ -20,6 +24,8 @@ export const router = createBrowserRouter([
       { path: "proofs", element: <Navigate to="/proofs/1840" replace /> },
       { path: "proofs/:proofId", element: <ProofDetail /> },
       { path: "leaderboard", element: <Leaderboard /> },
+      { path: "integrations", element: <Integrations /> },
+      { path: "wallet", element: <Wallet /> },
       { path: "*", element: <NotFound /> },
     ],
   },
