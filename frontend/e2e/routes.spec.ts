@@ -23,7 +23,8 @@ for (const theme of ["light", "dark"] as const) {
         await page.goto(path);
         await expect(page.getByRole("heading", { level: 1 })).toContainText(heading);
         expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe(theme);
-        if (tab) await expect(page.getByRole("link", { name: tab, exact: true })).toHaveAttribute("aria-current", "page");
+        if (tab)
+          await expect(page.getByRole("link", { name: tab, exact: true })).toHaveAttribute("aria-current", "page");
         expect(errors).toEqual([]);
       });
     }

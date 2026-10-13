@@ -36,7 +36,9 @@ test.describe("first paint", () => {
 
   test("a saved choice beats the OS setting", async ({ browser }) => {
     const ctx = await browser.newContext({ colorScheme: "dark" });
-    await ctx.addInitScript(() => localStorage.setItem("mergit-theme", "light"));
+    await ctx.addInitScript(() => {
+      localStorage.setItem("mergit-theme", "light");
+    });
     const page = await ctx.newPage();
     await page.goto("/");
     expect(await themeOf(page)).toBe("light");
@@ -81,13 +83,11 @@ test.describe("toggle", () => {
     await page.evaluate(() => {
       const w = window as unknown as { __vt: number };
       w.__vt = 0;
-      const original = document.startViewTransition?.bind(document);
-      if (original) {
-        document.startViewTransition = ((cb: () => void) => {
-          w.__vt++;
-          return original(cb);
-        }) as typeof document.startViewTransition;
-      }
+      const original = document.startViewTransition.bind(document);
+      document.startViewTransition = ((cb: () => void) => {
+        w.__vt++;
+        return original(cb);
+      }) as typeof document.startViewTransition;
     });
     await toggle(page).click();
     expect(await themeOf(page)).toBe("dark");
