@@ -9,9 +9,15 @@ import "@fontsource/dm-mono/500.css";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/components.css";
+import "./styles/motion.css";
+import { ThemeProvider } from "./theme/ThemeProvider";
+import { ThemeToggle } from "./components/ThemeToggle";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <h1 className="display">Mergit</h1>
+    <ThemeProvider>
+      <h1 className="display">Mergit</h1>
+      <ThemeToggle />
+    </ThemeProvider>
   </StrictMode>,
 );
