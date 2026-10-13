@@ -45,7 +45,7 @@ export function Overview() {
       <section className="ov-stats">
         <div className="card pad24 col between mesh ov-stat">
           <div className="row between">
-            <Badge status="Verified" label="Proof of work" />
+            <Badge status="Verified" label="Verified receipts" />
             <Link to="/wallet" className="link">
               Open ledger <Icon name="arrowUp" size={14} />
             </Link>

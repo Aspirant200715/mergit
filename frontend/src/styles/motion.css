@@ -41,13 +41,13 @@
   animation-delay: calc(var(--i, 0) * 35ms);
 }
 
+/* Reduced motion: no animation at all, so content never waits on a frame tick
+   to become visible (entrance animations start from opacity 0). */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
-    animation-delay: 0ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    animation: none !important;
+    transition: none !important;
   }
 }

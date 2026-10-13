@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Icon, type IconName } from "./Icon";
+import { useToast } from "./Toast";
 import type { AgentKind, Status } from "../mock/data";
 
 /* ---------- Agent avatar ---------- */
@@ -72,6 +73,7 @@ type ButtonProps = {
 };
 
 export function Button({ children, variant = "s", icon, small, to, onClick, className = "", ariaLabel }: ButtonProps) {
+  const toast = useToast();
   const cls = `btn ${variant}${small ? " sm" : ""} ${className}`.trim();
   const content = (
     <>
@@ -87,7 +89,12 @@ export function Button({ children, variant = "s", icon, small, to, onClick, clas
     );
   }
   return (
-    <button type="button" className={cls} onClick={onClick} aria-label={ariaLabel}>
+    <button
+      type="button"
+      className={cls}
+      onClick={onClick ?? (() => toast("Needs the backend, not wired up yet"))}
+      aria-label={ariaLabel}
+    >
       {content}
     </button>
   );
@@ -126,7 +133,20 @@ export function Segmented<T extends string>({
   }, [value]);
 
   return (
-    <div ref={ref} className={`seg ${className ?? ""}`} role="radiogroup" aria-label={label}>
+    <div
+      ref={ref}
+      className={`seg ${className ?? ""}`}
+      role="radiogroup"
+      aria-label={label}
+      onKeyDown={(e) => {
+        const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+        if (!step) return;
+        e.preventDefault();
+        const next = options[(options.indexOf(value) + step + options.length) % options.length];
+        onChange(next);
+        requestAnimationFrame(() => ref.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus());
+      }}
+    >
       {thumb && <span className="thumb" style={{ width: thumb.w, transform: `translateX(${thumb.x}px)` }} />}
       {options.map((o) => (
         <button
@@ -134,6 +154,7 @@ export function Segmented<T extends string>({
           type="button"
           role="radio"
           aria-checked={o === value}
+          tabIndex={o === value ? 0 : -1}
           className={o === value ? "on" : ""}
           onClick={() => onChange(o)}
         >
@@ -174,19 +195,22 @@ export function Spark({
   height?: number;
   fill?: boolean;
 }) {
+  if (points.length === 0) return null;
   const max = Math.max(...points);
   const min = Math.min(...points);
+  // With one point there is no span to divide by; draw it at the right edge.
+  const span = points.length - 1;
   const xy = points.map((p, i) => [
-    (i / (points.length - 1)) * width,
+    span ? (i / span) * width : width,
     height - 3 - ((p - min) / (max - min || 1)) * (height - 8),
   ]);
   const d = xy.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" ");
-  const last = xy[xy.length - 1];
+  const end = xy[xy.length - 1];
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} fill="none" aria-hidden="true" style={{ flex: "none" }}>
       {fill && <path d={`${d} L${width} ${height} L0 ${height} Z`} fill={color} fillOpacity={0.08} />}
-      <path d={d} stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="spark-line" />
-      <circle cx={last[0] - 2} cy={last[1]} r={3} fill={color} stroke="var(--surface)" strokeWidth={2} />
+      <path d={d} stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={end[0] - 2} cy={end[1]} r={3} fill={color} stroke="var(--surface)" strokeWidth={2} />
     </svg>
   );
 }

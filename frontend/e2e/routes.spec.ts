@@ -41,7 +41,7 @@ test("design copy uses the current protocol terms", async ({ page }) => {
   for (const path of ["/", "/runs/RUN-2048", "/proofs/1840", "/wallet", "/agents", "/leaderboard"]) {
     await page.goto(path);
     const text = await page.locator("body").innerText();
-    expect(text, path).not.toMatch(/Monad|AgentPassport|ProofOfWork|passport/i);
+    expect(text, path).not.toMatch(/Monad|AgentPassport|ProofOfWork|proof of work|passport/i);
     // Case-sensitive: "Mon" is a weekday label on the overview chart.
     expect(text, path).not.toMatch(/\bMON\b/);
   }
@@ -61,4 +61,22 @@ test("selecting a flow node updates the side panel", async ({ page }) => {
   await page.goto("/runs/RUN-2048");
   await page.getByRole("button", { name: /Coder Patched session check/ }).click();
   await expect(page.getByRole("heading", { name: "Code agent" })).toBeVisible();
+});
+
+test("segmented controls follow the radio-group keyboard pattern", async ({ page }) => {
+  await page.goto("/");
+  const all = page.getByRole("radio", { name: "All" });
+  await all.focus();
+  await page.keyboard.press("ArrowRight");
+  const running = page.getByRole("radio", { name: "Running" });
+  await expect(running).toHaveAttribute("aria-checked", "true");
+  await expect(running).toBeFocused();
+  await expect(page.getByRole("link", { name: /Implement CSV import validation/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Fix authentication bug/ })).toHaveCount(0);
+});
+
+test("buttons without a backend say so instead of doing nothing", async ({ page }) => {
+  await page.goto("/wallet");
+  await page.getByRole("button", { name: "Fund wallet" }).click();
+  await expect(page.getByRole("status")).toHaveText("Needs the backend, not wired up yet");
 });
