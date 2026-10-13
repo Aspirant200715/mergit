@@ -9,13 +9,13 @@ const stored = (page: Page) => page.evaluate(() => localStorage.getItem("mergit-
 const toggle = (page: Page) => page.getByRole("button", { name: /Switch to (light|dark) mode/ });
 
 async function settle(page: Page) {
-  // Wait for the reveal or fade to finish so computed colours are final.
-  await page.waitForFunction(() =>
-    document
-      .getAnimations()
-      .every((a) => !(a.effect as KeyframeEffect | null)?.pseudoElement?.includes("view-transition") || a.playState !== "running"),
+  // A view transition is "active" from the moment it is requested, before its
+  // update callback runs, so this cannot pass early the way polling animations can.
+  await page.waitForFunction(
+    () =>
+      !document.documentElement.matches(":active-view-transition") &&
+      !document.documentElement.classList.contains("theme-fade"),
   );
-  await page.waitForFunction(() => !document.documentElement.classList.contains("theme-fade"));
 }
 
 test.describe("first paint", () => {
