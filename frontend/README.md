@@ -9,26 +9,47 @@ Vite, React 19, TypeScript and React Router. No backend yet: every screen reads 
 
 ## Run it
 
+Node 22.12 or newer.
+
 ```sh
 npm install
-npm run dev        # http://localhost:5173
-npm run build      # typecheck and production build
-npm run test:e2e   # Playwright; add PLAYWRIGHT_CHANNEL=chrome to use an installed Chrome
+npm run dev           # http://localhost:5173
+npm run build         # type-check and production build
+npm run lint          # ESLint: strict type-checked rules, React hooks, accessibility
+npm run format:check  # Prettier
+npm run test:e2e      # Playwright; add PLAYWRIGHT_CHANNEL=chrome to use an installed Chrome
 ```
+
+CI runs all of these on every pull request that touches `frontend/`.
+
+## Layout
+
+| Folder                                |                                                                       |
+| ------------------------------------- | --------------------------------------------------------------------- |
+| `src/screens`                         | One file per screen; the run workspace is split into `screens/run`    |
+| `src/components`                      | Shared UI: buttons, badges, segmented control, nav, theme toggle      |
+| `src/hooks`, `src/lib`                | Small hooks and helpers                                               |
+| `src/theme`, `src/toast`, `src/state` | Theme switching, toasts, and approvals shared by the nav and Overview |
+| `src/mock/data.ts`                    | Every number and string the screens show                              |
+| `src/styles`                          | Tokens, base and component styles, one stylesheet per screen          |
+| `e2e`                                 | Playwright tests                                                      |
+
+Controls whose action needs a backend (Fund wallet, Create agent and so on) say so in a toast
+instead of doing nothing.
 
 ## Screens
 
-| Route | Screen |
-|---|---|
-| `/` | Overview |
-| `/runs/:id` | Run workspace, task graph and live log |
-| `/runs/new` | New run |
-| `/agents` | Agents |
-| `/proofs/:id` | Work proof |
-| `/leaderboard` | Leaderboard |
-| `/integrations` | Integrations |
-| `/wallet` | Wallet and identity |
-| `/signin` | Sign in |
+| Route           | Screen                                 |
+| --------------- | -------------------------------------- |
+| `/`             | Overview                               |
+| `/runs/:id`     | Run workspace, task graph and live log |
+| `/runs/new`     | New run                                |
+| `/agents`       | Agents                                 |
+| `/proofs/:id`   | Work proof                             |
+| `/leaderboard`  | Leaderboard                            |
+| `/integrations` | Integrations                           |
+| `/wallet`       | Wallet and identity                    |
+| `/signin`       | Sign in                                |
 
 ## Light and dark
 
