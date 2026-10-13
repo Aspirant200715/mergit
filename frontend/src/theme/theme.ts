@@ -4,7 +4,7 @@ export type Theme = "light" | "dark";
 
 /** Must match the inline boot script in index.html. */
 export const STORAGE_KEY = "mergit-theme";
-const DARK_QUERY = "(prefers-color-scheme: dark)";
+export const DARK_QUERY = "(prefers-color-scheme: dark)";
 const FADE_CLASS = "theme-fade";
 const FADE_MS = 320;
 
@@ -46,6 +46,9 @@ function setAttribute(theme: Theme) {
   document.documentElement.dataset.theme = theme;
 }
 
+/** Ends a fade still in progress, so a quick second switch starts clean. */
+let endFade: (() => void) | null = null;
+
 /** Cross-fade every colour for a moment. Used for changes that did not come from a click. */
 export function fadeTo(theme: Theme, commit: () => void) {
   const root = document.documentElement;
@@ -75,9 +78,6 @@ export function fadeTo(theme: Theme, commit: () => void) {
   body.addEventListener("transitionend", onEnd);
   endFade = finish;
 }
-
-/** Ends a fade still in progress, so a quick second switch starts clean. */
-let endFade: (() => void) | null = null;
 
 /**
  * Switch with a circular reveal that grows from the toggle. Falls back to the
@@ -111,5 +111,3 @@ export function revealTo(theme: Theme, origin: { x: number; y: number }, commit:
       // Transition skipped (tab hidden, another transition started). The theme is already set.
     });
 }
-
-export { DARK_QUERY };

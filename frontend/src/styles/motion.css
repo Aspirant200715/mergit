@@ -11,8 +11,8 @@
 .theme-fade *,
 .theme-fade *::before,
 .theme-fade *::after {
-  transition-property: background-color, background, border-color, color, fill, stroke, box-shadow,
-    outline-color !important;
+  transition-property:
+    background-color, background, border-color, color, fill, stroke, box-shadow, outline-color !important;
   transition-duration: 0.32s !important;
   transition-timing-function: ease !important;
 }

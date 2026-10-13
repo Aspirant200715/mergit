@@ -18,7 +18,6 @@
   --on-ink: #ffffff;
   --azure: #1f6bff;
   --azure-wash: #e8f0ff;
-  --azure-solid: #1f6bff;
   --mint: #0e9f74;
   --mint-wash: #e3f6ef;
   --amber: #b26b00;
@@ -41,10 +40,12 @@
   --proof: #5e5a50;
   --proof-w: #efede8;
 
-  --mesh: radial-gradient(120% 140% at 0% 0%, #dce8ff 0%, rgba(220, 232, 255, 0) 55%),
+  --mesh:
+    radial-gradient(120% 140% at 0% 0%, #dce8ff 0%, rgba(220, 232, 255, 0) 55%),
     radial-gradient(90% 120% at 100% 0%, #ebe3ff 0%, rgba(235, 227, 255, 0) 60%),
     radial-gradient(100% 120% at 60% 100%, #ddf6ec 0%, rgba(221, 246, 236, 0) 60%), #ffffff;
-  --wallet-card: radial-gradient(120% 120% at 0% 0%, #c9daff 0%, rgba(201, 218, 255, 0) 55%),
+  --wallet-card:
+    radial-gradient(120% 120% at 0% 0%, #c9daff 0%, rgba(201, 218, 255, 0) 55%),
     radial-gradient(100% 120% at 100% 0%, #dccfff 0%, rgba(220, 207, 255, 0) 60%),
     radial-gradient(110% 120% at 70% 100%, #c7f0df 0%, rgba(199, 240, 223, 0) 60%), #f3f4ff;
   --wallet-card-border: #e1e3f0;
@@ -74,7 +75,6 @@
   --verified-ring: 0 0 0 6px rgba(14, 159, 116, 0.12);
   --composer-shadow: 0 1px 2px rgba(14, 16, 24, 0.04), 0 12px 32px -12px rgba(14, 16, 24, 0.1);
   --float-shadow: 0 12px 32px -12px rgba(14, 16, 24, 0.18);
-  --menu-shadow: 0 12px 32px -12px rgba(14, 16, 24, 0.22), 0 1px 2px rgba(14, 16, 24, 0.06);
   --hover: rgba(14, 16, 24, 0.035);
   --focus: rgba(31, 107, 255, 0.35);
 }
@@ -93,7 +93,6 @@
   --on-ink: #0b0c0f;
   --azure: #6e9bff;
   --azure-wash: #16213a;
-  --azure-solid: #3d73f5;
   --mint: #3ccb98;
   --mint-wash: #10271f;
   --amber: #e5a54b;
@@ -116,10 +115,12 @@
   --proof: #c2bcae;
   --proof-w: #22211e;
 
-  --mesh: radial-gradient(120% 140% at 0% 0%, rgba(110, 155, 255, 0.16) 0%, rgba(110, 155, 255, 0) 55%),
+  --mesh:
+    radial-gradient(120% 140% at 0% 0%, rgba(110, 155, 255, 0.16) 0%, rgba(110, 155, 255, 0) 55%),
     radial-gradient(90% 120% at 100% 0%, rgba(168, 152, 255, 0.13) 0%, rgba(168, 152, 255, 0) 60%),
     radial-gradient(100% 120% at 60% 100%, rgba(60, 203, 152, 0.1) 0%, rgba(60, 203, 152, 0) 60%), #121317;
-  --wallet-card: radial-gradient(120% 120% at 0% 0%, rgba(110, 155, 255, 0.28) 0%, rgba(110, 155, 255, 0) 55%),
+  --wallet-card:
+    radial-gradient(120% 120% at 0% 0%, rgba(110, 155, 255, 0.28) 0%, rgba(110, 155, 255, 0) 55%),
     radial-gradient(100% 120% at 100% 0%, rgba(168, 152, 255, 0.24) 0%, rgba(168, 152, 255, 0) 60%),
     radial-gradient(110% 120% at 70% 100%, rgba(60, 203, 152, 0.18) 0%, rgba(60, 203, 152, 0) 60%), #15171d;
   --wallet-card-border: #2a2e37;
@@ -149,7 +150,6 @@
   --verified-ring: 0 0 0 6px rgba(60, 203, 152, 0.14);
   --composer-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -16px rgba(0, 0, 0, 0.6);
   --float-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.6);
-  --menu-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--border-strong);
   --hover: rgba(236, 238, 242, 0.04);
   --focus: rgba(110, 155, 255, 0.45);
 }

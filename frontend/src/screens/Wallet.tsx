@@ -1,12 +1,22 @@
-import { Link } from "react-router-dom";
-import { Icon, BrandMark } from "../components/Icon";
-import { AgentAvatar, Badge, Button, PageHeader, Spark } from "../components/ui";
-import { useCopy } from "../components/Toast";
+import { AgentAvatar } from "../components/AgentAvatar";
+import { Badge } from "../components/Badge";
+import { BrandMark, Icon } from "../components/Icon";
+import { Button } from "../components/Button";
+import { PageHeader } from "../components/PageHeader";
+import { Spark } from "../components/Spark";
+import { stagger } from "../lib/stagger";
 import { me, wallet } from "../mock/data";
+import { useCopy } from "../hooks/useCopy";
+import { useNotWired } from "../hooks/useNotWired";
 import "../styles/screens/wallet.css";
+
+/** Fits the 380px outbox card at its 20px padding. */
+const LAG_CHART = { width: 338, height: 52 };
 
 export function Wallet() {
   const copy = useCopy();
+  const notWired = useNotWired();
+
   return (
     <>
       <PageHeader
@@ -15,7 +25,7 @@ export function Wallet() {
         actions={
           <>
             <Button icon="link">Switch chain</Button>
-            <Button variant="p" icon="plus">
+            <Button variant="primary" icon="plus">
               Fund wallet
             </Button>
           </>
@@ -29,7 +39,7 @@ export function Wallet() {
               <BrandMark size={28} />
               <span className="strong">Signing wallet</span>
             </div>
-            <Badge status="Completed" label="Connected" style={{ background: "var(--glass-badge)" }} />
+            <Badge status="Completed" label="Connected" className="glass" />
           </div>
           <div className="col g4">
             <span className="small c2">Balance</span>
@@ -38,8 +48,14 @@ export function Wallet() {
             </span>
           </div>
           <div className="row between">
-            <span className="mono" style={{ fontSize: 14 }}>{me.addressLong}</span>
-            <button type="button" className="row g6 small c2 wl-copy" onClick={() => copy("0x6E2d4A9c…9A0b", "Address copied")}>
+            <span className="mono wl-address">{me.addressLong}</span>
+            <button
+              type="button"
+              className="row g6 small c2 wl-copy"
+              onClick={() => {
+                copy(me.addressFull, "Address copied");
+              }}
+            >
               <Icon name="copy" size={14} />
               Copy
             </button>
@@ -52,84 +68,88 @@ export function Wallet() {
             <Badge status="Verified" label="ERC-8004" />
           </div>
           <div className="row g16">
-            <AgentAvatar kind="Planner" size={56} />
+            <AgentAvatar kind={wallet.identity.avatar} size={56} />
             <div className="col g4 grow">
-              <span className="h" style={{ fontSize: 20 }}>{wallet.identity.name}</span>
+              <span className="heading wl-team">{wallet.identity.name}</span>
               <span className="mono-s c3">{wallet.identity.did}</span>
             </div>
           </div>
-          <div className="wl-stats">
-            {wallet.identity.stats.map(([l, v]) => (
-              <div key={l} className="inner col" style={{ padding: "12px 14px" }}>
-                <span className="small c3">{l}</span>
-                <span className="stat" style={{ fontSize: 24, lineHeight: "30px" }}>{v}</span>
+          <dl className="wl-stats">
+            {wallet.identity.stats.map(([label, value]) => (
+              <div key={label} className="inner pad-md col">
+                <dt className="small c3">{label}</dt>
+                <dd className="stat wl-stat">{value}</dd>
               </div>
             ))}
-          </div>
+          </dl>
           <span className="small c3">{wallet.identity.note}</span>
         </div>
       </section>
 
       <section className="wl-bottom fill">
-        <div className="card col" style={{ minHeight: 0 }}>
+        <div className="card col min0">
           <div className="hd">
             <h2 className="title">Proof outbox</h2>
-            <span className="small c3">retries every 15s</span>
+            <span className="small c3">retries every {wallet.outboxRetry}</span>
           </div>
-          <div className="row g12" style={{ padding: "0 20px 14px" }}>
-            {wallet.outbox.map(([l, v, c]) => (
-              <div key={l} className="inner col" style={{ flex: 1, padding: 12 }}>
-                <span className="small c3">{l}</span>
-                <span className="title" style={{ color: c, fontSize: 20 }}>{v}</span>
+          <div className="row g12 wl-outbox">
+            {wallet.outbox.map((item) => (
+              <div key={item.label} className="inner col wl-outbox-cell">
+                <span className="small c3">{item.label}</span>
+                <span className={`title wl-outbox-value ${item.tone}`}>{item.value}</span>
               </div>
             ))}
           </div>
-          {wallet.contracts.map(([n, a]) => (
-            <button key={n} type="button" className="tr" style={{ minHeight: 46 }} onClick={() => copy(a, `${n} address copied`)}>
-              <span className="strong grow">{n}</span>
-              <span className="mono c2">{a}</span>
+          {wallet.contracts.map(([name, address]) => (
+            <button key={name} type="button" className="tr short" onClick={notWired}>
+              <span className="strong grow">{name}</span>
+              <span className="mono c2">{address}</span>
               <Icon name="external" size={14} color="var(--ink3)" />
             </button>
           ))}
-          <div className="col g6" style={{ marginTop: "auto", padding: "16px 20px" }}>
+          <div className="col g6 mt-auto wl-lag-wrap">
             <div className="row between">
               <span className="small c3">Settlement lag, today</span>
-              <span className="mono-s">median 41s</span>
+              <span className="mono-s">median {wallet.lagMedian}</span>
             </div>
             <div className="wl-lag">
-              <Spark points={wallet.lag} color="var(--mint)" width={338} height={52} />
+              <Spark points={wallet.lag} color="var(--mint)" width={LAG_CHART.width} height={LAG_CHART.height} />
             </div>
           </div>
         </div>
 
-        <div className="card col" style={{ minHeight: 0 }}>
+        <div className="card col min0">
           <div className="hd">
             <h2 className="title">Recent settlements</h2>
-            <Link to="/proofs" className="link small">
+            <Button variant="link" compact>
               All proofs
-            </Link>
+            </Button>
           </div>
           <div className="tbl-h">
             <span className="grow">Task</span>
-            <span className="hide-md" style={{ width: 100 }}>Block</span>
-            <span className="hide-sm" style={{ width: 110 }}>Transaction</span>
-            <span style={{ width: 120 }}>Status</span>
-            <span className="hide-sm" style={{ width: 60, textAlign: "right" }}>When</span>
+            <span className="w-100 hide-md">Block</span>
+            <span className="w-110 hide-sm">Transaction</span>
+            <span className="w-120">Status</span>
+            <span className="w-60 text-right hide-sm">When</span>
           </div>
           <div className="scroll">
             {wallet.settlements.map((s, i) => (
-              <Link key={s.tx} to="/proofs/1840" className="tr rise" style={{ minHeight: 48, "--i": i } as React.CSSProperties}>
+              <div key={s.tx} className="tr rise wl-row" style={stagger(i)}>
                 <div className="row g10 grow">
-                  <AgentAvatar kind={s.agent} size={26} />
+                  <AgentAvatar kind={s.agent} size={26} labelled />
                   <span className="strong ellipsis">{s.task}</span>
                 </div>
-                <span className="mono c2 hide-md" style={{ width: 100 }}>{s.block}</span>
-                <span className={`mono hide-sm ${s.settled ? "cz" : "c3"}`} style={{ width: 110 }}>{s.tx}</span>
-                <span style={{ width: 120 }}>
-                  {s.settled ? <Badge status="Verified" label="Settled" /> : <Badge status="Running" label="Awaiting chain" />}
+                <span className="mono c2 w-100 hide-md">{s.block}</span>
+                <span className={`mono w-110 hide-sm ${s.settled ? "cz" : "c3"}`}>{s.tx}</span>
+                <span className="w-120">
+                  {s.settled ? (
+                    <Badge status="Verified" label="Settled" />
+                  ) : (
+                    <Badge status="Running" label="Awaiting chain" />
+                  )}
                 </span>
-                <span className="small c3 hide-sm" style={{ width: 60, textAlign: "right" }}>{s.when} ago</span>
-              </Link>
+                <span className="small c3 w-60 text-right hide-sm">{s.when} ago</span>
+              </div>
             ))}
           </div>
         </div>

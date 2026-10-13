@@ -1,9 +1,22 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { AgentAvatar } from "../components/AgentAvatar";
+import { Badge } from "../components/Badge";
 import { Icon } from "../components/Icon";
-import { AgentAvatar, Badge, Switch } from "../components/ui";
-import { useToast } from "../components/Toast";
-import { askBefore, defaultPrompt, draftPlan, templates } from "../mock/data";
+import { Switch } from "../components/Switch";
+import { stagger } from "../lib/stagger";
+import {
+  ASK_TIMEOUT_SECONDS,
+  askBefore,
+  defaultPrompt,
+  draftPlan,
+  draftPlanApps,
+  newRunContext,
+  runDetail,
+  templates,
+} from "../mock/data";
+import { useToast } from "../toast/context";
+import { useNotWired } from "../hooks/useNotWired";
 import "../styles/screens/newrun.css";
 
 const LIMIT = 2000;
@@ -13,11 +26,13 @@ export function NewRun() {
   const [asks, setAsks] = useState(askBefore);
   const navigate = useNavigate();
   const toast = useToast();
+  const notWired = useNotWired();
 
   const start = () => {
     if (!prompt.trim()) return;
-    toast("Run started");
-    navigate("/runs/RUN-2048");
+    // No runtime yet: open the demo trace instead of a run built from this prompt.
+    toast(`Demo mode: opening ${runDetail.id}`);
+    void navigate(`/runs/${runDetail.id}`);
   };
 
   return (
@@ -29,7 +44,10 @@ export function NewRun() {
             New run
           </span>
           <h1 className="display">Describe the outcome, not the steps</h1>
-          <p className="c2">Mergit plans the work, picks the agents, asks before risky writes, and settles every finished task as a proof.</p>
+          <p className="c2">
+            Mergit plans the work, picks the agents, asks before risky writes, and settles every finished task as a
+            proof.
+          </p>
         </div>
 
         <div className="card nr-composer">
@@ -37,7 +55,9 @@ export function NewRun() {
             className="nr-input"
             value={prompt}
             maxLength={LIMIT}
-            onChange={(e) => setPrompt(e.target.value)}
+            onChange={(e) => {
+              setPrompt(e.target.value);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) start();
             }}
@@ -45,23 +65,29 @@ export function NewRun() {
             placeholder="Describe what should be true when the run is done"
           />
           <div className="row g8 nr-bar">
-            <button type="button" className="chipo">
+            <button type="button" className="chipo" onClick={notWired}>
               <Icon name="attach" size={14} />
               Attach
             </button>
-            <button type="button" className="chipo">
+            <span className="chipo static" title="Repository">
               <Icon name="repo" size={14} />
-              acme/billing
-            </button>
-            <button type="button" className="chipo hide-sm">
+              {newRunContext.repo}
+            </span>
+            <span className="chipo static hide-sm" title="Source thread">
               <Icon name="link" size={14} />
-              #backend thread
-            </button>
+              {newRunContext.thread}
+            </span>
             <span className="grow" />
             <span className="mono-s c3">
               {prompt.length.toLocaleString()} / {LIMIT.toLocaleString()}
             </span>
-            <button type="button" className="btn p nr-send" onClick={start} aria-label="Start run" disabled={!prompt.trim()}>
+            <button
+              type="button"
+              className="btn primary icon-only"
+              onClick={start}
+              aria-label="Start run"
+              disabled={!prompt.trim()}
+            >
               <Icon name="arrowUp" size={16} stroke={2} />
             </button>
           </div>
@@ -69,42 +95,57 @@ export function NewRun() {
 
         <div className="nr-grid">
           <div className="card col">
-            <div className="hd" style={{ paddingBottom: 8 }}>
+            <div className="hd nr-plan-head">
               <h2 className="title">Draft plan</h2>
-              <span className="small c3">6 tasks, 4 apps, planned in 3s</span>
+              <span className="small c3">
+                {draftPlan.length} tasks, {draftPlanApps} apps, planned in {runDetail.plannedIn}
+              </span>
             </div>
-            {draftPlan.map((p, i) => (
-              <div key={p.task} className="row g12 nr-step rise" style={{ "--i": i } as React.CSSProperties}>
-                <span className="mono-s c3" style={{ width: 16 }}>t{i + 1}</span>
-                <AgentAvatar kind={p.agent} size={26} />
-                <div className="col grow">
-                  <span className="strong">{p.task}</span>
-                  <span className="mono-s c3">{p.tools}</span>
-                </div>
-                {p.gate && <Badge status="Waiting" label="Asks you" />}
-              </div>
-            ))}
+            <ol className="nr-steps">
+              {draftPlan.map((step, i) => (
+                <li key={step.task} className="row g12 nr-step rise" style={stagger(i)}>
+                  <span className="mono-s c3 w-16">t{i + 1}</span>
+                  <AgentAvatar kind={step.agent} size={26} labelled />
+                  <div className="col grow">
+                    <span className="strong">{step.task}</span>
+                    <span className="mono-s c3">{step.tools}</span>
+                  </div>
+                  {step.gate && <Badge status="Waiting" label="Asks you" />}
+                </li>
+              ))}
+            </ol>
           </div>
           <div className="col g16">
             <div className="card pad col g12">
               <h2 className="title">Ask me before</h2>
-              {asks.map((a, i) => (
-                <div key={a.label} className="row between">
-                  <span className="c2">{a.label}</span>
+              {asks.map((ask, i) => (
+                <div key={ask.label} className="row between">
+                  <span className="c2">{ask.label}</span>
                   <Switch
-                    checked={a.on}
-                    label={a.label}
-                    onChange={(on) => setAsks((list) => list.map((x, j) => (j === i ? { ...x, on } : x)))}
+                    checked={ask.on}
+                    label={ask.label}
+                    onChange={(on) => {
+                      setAsks((list) => list.map((x, j) => (j === i ? { ...x, on } : x)));
+                    }}
                   />
                 </div>
               ))}
-              <span className="small c3">Unanswered asks expire in 10s and the task stops instead of guessing.</span>
+              <span className="small c3">
+                Unanswered asks expire in {ASK_TIMEOUT_SECONDS}s and the task stops instead of guessing.
+              </span>
             </div>
             <div className="card pad col g10">
               <h2 className="title">Start from</h2>
-              {templates.map((t) => (
-                <button key={t} type="button" className="row between nr-template" onClick={() => setPrompt(`${t}: `)}>
-                  <span className="c2">{t}</span>
+              {templates.map((template) => (
+                <button
+                  key={template}
+                  type="button"
+                  className="row between nr-template"
+                  onClick={() => {
+                    setPrompt(`${template}: `);
+                  }}
+                >
+                  <span className="c2">{template}</span>
                   <Icon name="chevronRight" size={14} color="var(--ink3)" />
                 </button>
               ))}

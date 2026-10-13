@@ -68,7 +68,7 @@ textarea {
   font-weight: 600;
   letter-spacing: -0.03em;
 }
-.h {
+.heading {
   font-size: 24px;
   line-height: 30px;
   font-weight: 600;
@@ -98,21 +98,70 @@ textarea {
   font-weight: 600;
   letter-spacing: -0.03em;
 }
-.c2 { color: var(--ink2); }
-.c3 { color: var(--ink3); }
-.cz { color: var(--azure); }
-.cm { color: var(--mint); }
-.cr { color: var(--red); }
-.ca { color: var(--amber); }
+.c2 {
+  color: var(--ink2);
+}
+.c3 {
+  color: var(--ink3);
+}
+.cz {
+  color: var(--azure);
+}
+.cm {
+  color: var(--mint);
+}
+.cr {
+  color: var(--red);
+}
+.ca {
+  color: var(--amber);
+}
 
 /* Layout helpers */
-.row { display: flex; align-items: center; }
-.col { display: flex; flex-direction: column; }
-.g4 { gap: 4px; } .g6 { gap: 6px; } .g8 { gap: 8px; } .g10 { gap: 10px; } .g12 { gap: 12px; }
-.g16 { gap: 16px; } .g20 { gap: 20px; } .g24 { gap: 24px; }
-.grow { flex: 1; min-width: 0; }
-.between { justify-content: space-between; }
-.ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row {
+  display: flex;
+  align-items: center;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+}
+.g4 {
+  gap: 4px;
+}
+.g6 {
+  gap: 6px;
+}
+.g8 {
+  gap: 8px;
+}
+.g10 {
+  gap: 10px;
+}
+.g12 {
+  gap: 12px;
+}
+.g16 {
+  gap: 16px;
+}
+.g20 {
+  gap: 20px;
+}
+.g24 {
+  gap: 24px;
+}
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+.between {
+  justify-content: space-between;
+}
+.ellipsis {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .sr-only {
   position: absolute;
   width: 1px;
@@ -120,4 +169,96 @@ textarea {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* Small layout utilities, so screens don't need inline style objects. */
+.min0 {
+  min-height: 0;
+}
+.mt-auto {
+  margin-top: auto;
+}
+.items-end {
+  align-items: flex-end;
+}
+.items-base {
+  align-items: baseline;
+}
+.self-start {
+  align-self: flex-start;
+}
+.text-right {
+  text-align: right;
+}
+.ink {
+  color: var(--ink);
+}
+.medium {
+  font-weight: 500;
+}
+
+/* Fixed table and row column widths, in px. They don't flex. */
+.w-16 {
+  width: 16px;
+  flex: none;
+}
+.w-28 {
+  width: 28px;
+  flex: none;
+}
+.w-36 {
+  width: 36px;
+  flex: none;
+}
+.w-46 {
+  width: 46px;
+  flex: none;
+}
+.w-56 {
+  width: 56px;
+  flex: none;
+}
+.w-60 {
+  width: 60px;
+  flex: none;
+}
+.w-84 {
+  width: 84px;
+  flex: none;
+}
+.w-90 {
+  width: 90px;
+  flex: none;
+}
+.w-100 {
+  width: 100px;
+  flex: none;
+}
+.w-110 {
+  width: 110px;
+  flex: none;
+}
+.w-120 {
+  width: 120px;
+  flex: none;
+}
+.w-130 {
+  width: 130px;
+  flex: none;
+}
+.w-140 {
+  width: 140px;
+  flex: none;
+}
+.w-150 {
+  width: 150px;
+  flex: none;
+}
+.w-200 {
+  width: 200px;
+  flex: none;
+}
+.w-240 {
+  width: 240px;
+  flex: none;
 }

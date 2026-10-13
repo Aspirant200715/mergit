@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { ThemeContext } from "./context";
 import {
   DARK_QUERY,
   STORAGE_KEY,
@@ -11,14 +12,6 @@ import {
   type Theme,
 } from "./theme";
 
-type ThemeContextValue = {
-  theme: Theme;
-  /** Flip the theme. Pass the click point to grow the reveal from there. */
-  toggle: (origin?: { x: number; y: number }) => void;
-};
-
-const ThemeContext = createContext<ThemeContextValue | null>(null);
-
 export function ThemeProvider({ children }: { children: ReactNode }) {
   // The boot script in index.html already set the attribute, so read it instead of recomputing.
   const [theme, setTheme] = useState<Theme>(currentTheme);
@@ -26,14 +19,20 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const toggle = useCallback((origin?: { x: number; y: number }) => {
     const next: Theme = currentTheme() === "dark" ? "light" : "dark";
     persistTheme(next);
-    const commit = () => setTheme(next);
+    const commit = () => {
+      setTheme(next);
+    };
     if (origin) revealTo(next, origin, commit);
     else fadeTo(next, commit);
   }, []);
 
   useEffect(() => {
     const follow = (next: Theme) => {
-      if (next !== currentTheme()) fadeTo(next, () => setTheme(next));
+      if (next !== currentTheme()) {
+        fadeTo(next, () => {
+          setTheme(next);
+        });
+      }
     };
 
     // Another tab changed the setting.
@@ -56,10 +55,4 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(() => ({ theme, toggle }), [theme, toggle]);
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
-}
-
-export function useTheme() {
-  const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error("useTheme must be used inside ThemeProvider");
-  return ctx;
 }

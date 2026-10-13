@@ -1,42 +1,48 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { AgentAvatar } from "../components/AgentAvatar";
+import { Badge } from "../components/Badge";
+import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
-import { AgentAvatar, Badge, Button, PageHeader, Segmented } from "../components/ui";
-import { agents } from "../mock/data";
+import { PageHeader } from "../components/PageHeader";
+import { Segmented } from "../components/Segmented";
+import { stagger } from "../lib/stagger";
+import { countPhrase } from "../lib/words";
+import { CATEGORY_FILTERS, agents, type Agent, type CategoryFilter } from "../mock/data";
 import "../styles/screens/agents.css";
 
-const CATEGORIES = ["All", "Coding", "Research", "Testing", "Writing"] as const;
-const SORTS = ["success", "tasks", "name"] as const;
+const SORTS = {
+  success: { label: "success", compare: (a: Agent, b: Agent) => b.success - a.success },
+  tasks: { label: "tasks", compare: (a: Agent, b: Agent) => b.tasks - a.tasks },
+  name: { label: "name", compare: (a: Agent, b: Agent) => a.name.localeCompare(b.name) },
+};
+type SortKey = keyof typeof SORTS;
+const isSortKey = (value: string): value is SortKey => value in SORTS;
 
 export function Agents() {
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<(typeof CATEGORIES)[number]>("All");
+  const [category, setCategory] = useState<CategoryFilter>("All");
   const [verifiedOnly, setVerifiedOnly] = useState(false);
-  const [sort, setSort] = useState<(typeof SORTS)[number] | null>(null);
+  const [sort, setSort] = useState<SortKey>("success");
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const filtered = agents.filter(
-      (a) =>
-        (category === "All" || a.category === category) &&
-        (!verifiedOnly || a.proofs > 0) &&
-        (!q || `${a.name} ${a.description} ${a.tags.join(" ")}`.toLowerCase().includes(q)),
-    );
-    if (sort === "success") return [...filtered].sort((a, b) => b.success - a.success);
-    if (sort === "tasks") return [...filtered].sort((a, b) => b.tasks - a.tasks);
-    if (sort === "name") return [...filtered].sort((a, b) => a.name.localeCompare(b.name));
-    return filtered;
+    return agents
+      .filter(
+        (a) =>
+          (category === "All" || a.category === category) &&
+          (!verifiedOnly || a.verified) &&
+          (!q || `${a.name} ${a.description} ${a.tags.join(" ")}`.toLowerCase().includes(q)),
+      )
+      .sort(SORTS[sort].compare);
   }, [query, category, verifiedOnly, sort]);
-
-  const nextSort = () => setSort((s) => SORTS[(SORTS.indexOf(s ?? "name") + 1) % SORTS.length]);
 
   return (
     <>
       <PageHeader
         title="Agents"
-        subtitle="Six specialists, each with a model you choose and an ERC-8004 identity on chain."
+        subtitle={`${countPhrase(agents.length, "specialist")}, each with a model you choose and an ERC-8004 identity on chain.`}
         actions={
-          <Button variant="p" icon="plus">
+          <Button variant="primary" icon="plus">
             Create agent
           </Button>
         }
@@ -44,30 +50,57 @@ export function Agents() {
       <div className="row g12 ag-tools">
         <label className="input ag-search">
           <Icon name="search" size={16} />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search agents" aria-label="Search agents" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+            }}
+            placeholder="Search agents"
+            aria-label="Search agents"
+          />
         </label>
-        <Segmented options={CATEGORIES} value={category} onChange={setCategory} label="Category" />
+        <Segmented options={CATEGORY_FILTERS} value={category} onChange={setCategory} label="Category" />
         <span className="grow" />
-        <button type="button" className={`chipo${verifiedOnly ? " on" : ""}`} aria-pressed={verifiedOnly} onClick={() => setVerifiedOnly((v) => !v)}>
+        <button
+          type="button"
+          className={`chipo${verifiedOnly ? " on" : ""}`}
+          aria-pressed={verifiedOnly}
+          onClick={() => {
+            setVerifiedOnly((v) => !v);
+          }}
+        >
           <Icon name="proofs" size={14} color="var(--mint)" stroke={2} />
           Verified only
         </button>
-        <button type="button" className="chipo" onClick={nextSort}>
-          Sort by {sort ?? "success"}
+        <label className="chipo select-chip">
+          <span className="sr-only">Sort agents</span>
+          <select
+            value={sort}
+            onChange={(e) => {
+              if (isSortKey(e.target.value)) setSort(e.target.value);
+            }}
+          >
+            {Object.entries(SORTS).map(([key, { label }]) => (
+              <option key={key} value={key}>
+                Sort by {label}
+              </option>
+            ))}
+          </select>
           <Icon name="chevronDown" size={14} />
-        </button>
+        </label>
       </div>
 
       <section className="ag-grid fill">
         {list.map((a, i) => (
-          <article key={a.name} className="card pad24 col g16 rise ag-card" style={{ "--i": i } as React.CSSProperties}>
+          <article key={a.name} className="card pad24 col g16 rise ag-card" style={stagger(i)}>
             <div className="row g12">
               <AgentAvatar kind={a.kind} size={48} />
               <div className="col grow">
                 <h2 className="title">{a.name}</h2>
                 <span className="small c3">{a.tasks} tasks settled</span>
               </div>
-              <Badge status="Verified" />
+              {a.verified ? <Badge status="Verified" /> : <Badge status="Neutral" label="Unverified" />}
             </div>
             <p className="c2">{a.description}</p>
             <div className="row g6">
@@ -77,33 +110,29 @@ export function Agents() {
                 </span>
               ))}
             </div>
-            <div className="inner row" style={{ marginTop: "auto" }}>
-              {(
-                [
-                  ["Success", `${a.success}%`],
-                  ["Median", a.median],
-                  ["Model", a.model],
-                ] as const
-              ).map(([l, v], j) => (
-                <div
-                  key={l}
-                  className="col"
-                  style={{ padding: "10px 14px", borderLeft: j ? "1px solid var(--border)" : undefined, flex: j === 2 ? 1.6 : 1, minWidth: 0 }}
-                >
-                  <span className="small c3">{l}</span>
-                  <span className="strong ellipsis">{v}</span>
-                </div>
-              ))}
+            <div className="inner cells mt-auto">
+              <div>
+                <span className="small c3">Success</span>
+                <span className="strong">{a.success}%</span>
+              </div>
+              <div>
+                <span className="small c3">Median</span>
+                <span className="strong">{a.median}</span>
+              </div>
+              <div className="wide">
+                <span className="small c3">Model</span>
+                <span className="strong ellipsis">{a.model}</span>
+              </div>
             </div>
             <div className="row between">
               <span className="mono-s c3">{a.address}</span>
-              <Link to="/wallet" className="link small">
-                View identity <Icon name="arrowRight" size={13} />
-              </Link>
+              <Button variant="link" compact icon="arrowRight">
+                View identity
+              </Button>
             </div>
           </article>
         ))}
-        {list.length === 0 && <p className="c3">No agents match “{query}”.</p>}
+        {list.length === 0 && <p className="c3">No agents match these filters.</p>}
       </section>
     </>
   );
