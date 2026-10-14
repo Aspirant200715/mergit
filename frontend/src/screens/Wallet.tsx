@@ -8,14 +8,16 @@ import { stagger } from "../lib/stagger";
 import { me, wallet } from "../mock/data";
 import { useCopy } from "../hooks/useCopy";
 import { useNotWired } from "../hooks/useNotWired";
+import { useWidth } from "../hooks/useWidth";
 import "../styles/screens/wallet.css";
 
-/** Fits the 380px outbox card at its 20px padding. */
+/** Fits the 380px outbox card at its 20px padding; wider when the card stretches. */
 const LAG_CHART = { width: 338, height: 52 };
 
 export function Wallet() {
   const copy = useCopy();
   const notWired = useNotWired();
+  const [lagRef, lagWidth] = useWidth<HTMLDivElement>(LAG_CHART.width);
 
   return (
     <>
@@ -112,8 +114,8 @@ export function Wallet() {
               <span className="small c3">Settlement lag, today</span>
               <span className="mono-s">median {wallet.lagMedian}</span>
             </div>
-            <div className="wl-lag">
-              <Spark points={wallet.lag} color="var(--mint)" width={LAG_CHART.width} height={LAG_CHART.height} />
+            <div className="wl-lag" ref={lagRef}>
+              <Spark points={wallet.lag} color="var(--mint)" width={lagWidth} height={LAG_CHART.height} />
             </div>
           </div>
         </div>

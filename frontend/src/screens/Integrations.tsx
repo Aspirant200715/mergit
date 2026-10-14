@@ -71,7 +71,7 @@ export function Integrations() {
           </div>
           <div className="scroll">
             {githubPermissions.map(([scope, purpose, level]) => (
-              <div key={scope} className="tr medium-row">
+              <div key={scope} className="tr medium-row in-perm">
                 <span className="mono w-140">{scope}</span>
                 <span className="c2 grow">{purpose}</span>
                 {level === "None" ? (

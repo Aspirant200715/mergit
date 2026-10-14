@@ -70,3 +70,12 @@
     grid-template-columns: 1fr;
   }
 }
+@media (max-width: 400px) {
+  .nr-bar {
+    flex-wrap: wrap;
+  }
+  /* The count and send button wrap together and stay on the right. */
+  .nr-bar > .mono-s {
+    margin-left: auto;
+  }
+}

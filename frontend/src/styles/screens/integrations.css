@@ -33,8 +33,22 @@
   }
 }
 @media (max-width: 760px) {
+  .in-apps {
+    grid-template-columns: 1fr;
+  }
   .in-app {
     height: auto;
+  }
+  /* Scope above its purpose, so the access level keeps its own column. */
+  .in-perm {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    column-gap: 12px;
+    padding-block: 10px;
+  }
+  .in-perm > :last-child {
+    grid-column: 2;
+    grid-row: 1 / span 2;
   }
   .in-repos {
     flex-wrap: wrap;

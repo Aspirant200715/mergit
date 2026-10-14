@@ -31,6 +31,34 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
+for (const width of [320, 390]) {
+  test(`no page scrolls sideways at ${String(width)}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    for (const [path, heading] of ROUTES) {
+      await page.goto(path);
+      await expect(page.getByRole("heading", { level: 1 })).toContainText(heading);
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow, path).toBe(0);
+    }
+  });
+}
+
+test("integration cards keep their contents inside on a phone", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto("/integrations");
+  const spills = await page.locator(".in-app").evaluateAll((cards) =>
+    cards.flatMap((card) => {
+      const box = card.getBoundingClientRect();
+      return Array.from(card.querySelectorAll("*"))
+        .filter((el) => el.getBoundingClientRect().right > box.right + 0.5)
+        .map((el) => el.textContent.trim() || el.tagName);
+    }),
+  );
+  expect(spills).toEqual([]);
+});
+
 test("short paths redirect to their detail pages", async ({ page }) => {
   await page.goto("/runs");
   await expect(page).toHaveURL(/\/runs\/RUN-2048$/);

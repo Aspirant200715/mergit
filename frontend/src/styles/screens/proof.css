@@ -101,8 +101,12 @@
   min-height: 0;
   overflow: hidden;
 }
+/* Long lines scroll sideways. One column, as wide as the longest line or the card, keeps every stripe full width. */
 .pf-code {
   padding: 8px 0;
+  overflow-x: auto;
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr);
 }
 .pf-checks {
   list-style: none;

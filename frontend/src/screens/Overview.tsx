@@ -64,7 +64,10 @@ export function Overview() {
             </div>
             <div className="row g8 c2 small ov-latest">
               Latest <span className="mono ink">{weekSummary.latestTx}</span> at block{" "}
-              <span className="mono ink">{weekSummary.latestBlock}</span>, {weekSummary.latestAgo}
+              {/* Grouped so the time wraps with its block on a phone; the gap matches the design. */}
+              <span className="row g8">
+                <span className="mono ink">{weekSummary.latestBlock}</span>, {weekSummary.latestAgo}
+              </span>
             </div>
           </div>
           <div className="row g8">

@@ -164,4 +164,8 @@
   .rw-log .row {
     flex-wrap: wrap;
   }
+  /* Room under the last row, so the zoom control clears the centred proof node. */
+  .rw-canvas {
+    height: 480px;
+  }
 }

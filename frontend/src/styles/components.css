@@ -61,6 +61,7 @@
 }
 .btn.icon-only {
   width: 38px;
+  flex: none;
   padding: 0;
   justify-content: center;
 }
@@ -275,6 +276,7 @@ button.tr {
 .link {
   color: var(--azure);
   font-weight: 500;
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -475,6 +477,11 @@ button.link {
   }
   .hd {
     flex-wrap: wrap;
+  }
+  /* A filter row next to a header link shrinks, so its tabs scroll instead of the page. */
+  .hd > .row {
+    min-width: 0;
+    max-width: 100%;
   }
   .hd .seg {
     max-width: 100%;
