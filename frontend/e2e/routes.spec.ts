@@ -5,6 +5,7 @@ const ROUTES: [string, string, string | null][] = [
   ["/app/runs/RUN-2048", "Fix authentication bug", "Runs"],
   ["/app/runs/new", "Describe the outcome, not the steps", "Runs"],
   ["/app/agents", "Agents", "Agents"],
+  ["/app/proofs", "Proof ledger & analytics", "Proofs"],
   ["/app/proofs/1840", "Work proof", "Proofs"],
   ["/app/leaderboard", "Leaderboard", "Leaderboard"],
   ["/app/integrations", "Integrations", "Integrations"],
@@ -74,11 +75,9 @@ test("the overview fits the 1440 x 900 design without scrolling", async ({ page 
   expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBe(900);
 });
 
-test("short paths redirect to their detail pages", async ({ page }) => {
+test("the runs tab opens the demo run", async ({ page }) => {
   await page.goto("/app/runs");
   await expect(page).toHaveURL(/\/runs\/RUN-2048$/);
-  await page.goto("/app/proofs");
-  await expect(page).toHaveURL(/\/proofs\/1840$/);
 });
 
 test("design copy uses the current protocol terms", async ({ page }) => {
