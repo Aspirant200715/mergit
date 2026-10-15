@@ -59,6 +59,21 @@ test("integration cards keep their contents inside on a phone", async ({ page })
   expect(spills).toEqual([]);
 });
 
+test("the overview fits the 1440 x 900 design without scrolling", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Good morning, Alex");
+  // Measure once the entrance animations settle; the page slides up into place.
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+        .map((a) => a.finished),
+    ),
+  );
+  expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBe(900);
+});
+
 test("short paths redirect to their detail pages", async ({ page }) => {
   await page.goto("/runs");
   await expect(page).toHaveURL(/\/runs\/RUN-2048$/);

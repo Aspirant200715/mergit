@@ -232,25 +232,28 @@ export function Overview() {
                 <span key={d.day}>{d.day}</span>
               ))}
             </div>
-            <table className="sr-only">
-              <caption>Tasks per day this week</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Day</th>
-                  <th scope="col">Completed</th>
-                  <th scope="col">Failed</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activity.map((d) => (
-                  <tr key={d.day}>
-                    <th scope="row">{d.day}</th>
-                    <td>{d.completed}</td>
-                    <td>{d.failed}</td>
+            {/* The wrapper takes the 1px box: a table grows to fit its rows and would add scroll. */}
+            <div className="sr-only">
+              <table>
+                <caption>Tasks per day this week</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Day</th>
+                    <th scope="col">Completed</th>
+                    <th scope="col">Failed</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {activity.map((d) => (
+                    <tr key={d.day}>
+                      <th scope="row">{d.day}</th>
+                      <td>{d.completed}</td>
+                      <td>{d.failed}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>
