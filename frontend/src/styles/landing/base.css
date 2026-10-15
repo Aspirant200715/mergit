@@ -4,7 +4,8 @@
  * with the viewport below that. Phones override sizes at the bottom.
  */
 .landing {
-  --u: min(1px, calc(100vw / 1920));
+  /* min() on whole lengths, then divide: Firefox rounds a sub-pixel min() result down by up to 2%. */
+  --u: calc(min(100vw, 1920px) / 1920);
   --l-sans: Manrope, system-ui, sans-serif;
   --l-mono: "JetBrains Mono", ui-monospace, monospace;
   --l-ease: cubic-bezier(0.3, 0.7, 0.2, 1);
