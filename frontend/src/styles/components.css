@@ -435,14 +435,6 @@ button.link {
 .spark {
   flex: none;
 }
-.brand-mark {
-  border-radius: 50%;
-  background: var(--ink);
-  display: grid;
-  place-items: center;
-  flex: none;
-  color: var(--on-ink);
-}
 
 .toast {
   position: fixed;

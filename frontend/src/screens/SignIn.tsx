@@ -2,7 +2,8 @@ import { useNavigate } from "react-router-dom";
 import { AgentAvatar } from "../components/AgentAvatar";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
-import { BrandMark, Icon } from "../components/Icon";
+import { Icon } from "../components/Icon";
+import { MergitLogo } from "../components/MergitLogo";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { signInPitch } from "../mock/data";
 import "../styles/screens/signin.css";
@@ -18,10 +19,7 @@ export function SignIn() {
   return (
     <div className="si">
       <section className="si-hero mesh">
-        <div className="row g10">
-          <BrandMark />
-          <span className="title si-brand">Mergit</span>
-        </div>
+        <MergitLogo height={32} className="si-logo" />
         <div className="col g20 page-enter">
           <h1 className="si-title">
             AI agents that do real work.

@@ -1,6 +1,7 @@
 import { AgentAvatar } from "../components/AgentAvatar";
 import { Badge } from "../components/Badge";
-import { BrandMark, Icon } from "../components/Icon";
+import { Icon } from "../components/Icon";
+import { MergitSymbol } from "../components/MergitLogo";
 import { Button } from "../components/Button";
 import { PageHeader } from "../components/PageHeader";
 import { Spark } from "../components/Spark";
@@ -38,7 +39,7 @@ export function Wallet() {
         <div className="wl-card">
           <div className="row between">
             <div className="row g8">
-              <BrandMark size={28} />
+              <MergitSymbol size={28} />
               <span className="strong">Signing wallet</span>
             </div>
             <Badge status="Completed" label="Connected" className="glass" />

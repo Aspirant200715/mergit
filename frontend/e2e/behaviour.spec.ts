@@ -95,3 +95,30 @@ test.describe("forms", () => {
     await expect(page.getByRole("button", { name: "Start run" })).toBeDisabled();
   });
 });
+
+test.describe("brand", () => {
+  test("the nav shows the Mergit logo and links home", async ({ page }) => {
+    await page.goto("/wallet");
+    const home = page.getByRole("link", { name: "Mergit home" });
+    await expect(home.locator("svg")).toBeVisible();
+    await home.click();
+    await expect(page).toHaveURL(/\/$/);
+  });
+
+  test("every icon in the head and the manifest serves an image", async ({ page, request }) => {
+    await page.goto("/");
+    const hrefs = await page
+      .locator('head link[rel~="icon"], head link[rel="apple-touch-icon"]')
+      .evaluateAll((links) => links.map((l) => l.getAttribute("href") ?? ""));
+    const manifest = await request.get("/manifest.webmanifest");
+    expect(manifest.ok()).toBe(true);
+    const { icons } = (await manifest.json()) as { icons: { src: string }[] };
+    const all = [...hrefs, ...icons.map((i) => i.src)];
+    expect(all.length).toBeGreaterThanOrEqual(6);
+    // The dev server answers unknown paths with the app's HTML, so check the type, not just the status.
+    for (const src of all) {
+      const res = await request.get(src);
+      expect(res.headers()["content-type"], src).toMatch(/^image\//);
+    }
+  });
+});

@@ -4,7 +4,8 @@ import { useSlidingThumb } from "../hooks/useSlidingThumb";
 import { me } from "../mock/data";
 import { useApprovals } from "../state/approvals";
 import { useNotWired } from "../hooks/useNotWired";
-import { BrandMark, Icon, type IconName } from "./Icon";
+import { Icon, type IconName } from "./Icon";
+import { MergitLogo } from "./MergitLogo";
 import { ThemeToggle } from "./ThemeToggle";
 
 const TABS: { label: string; icon: IconName; to: string }[] = [
@@ -32,9 +33,8 @@ export function TopNav() {
   return (
     <header className="nav">
       <div className="brand">
-        <Link to="/" className="row g10" aria-label="Mergit home">
-          <BrandMark />
-          Mergit
+        <Link to="/" className="row" aria-label="Mergit home">
+          <MergitLogo height={30} title="" />
         </Link>
         <span className="chip repo-chip">{me.repo}</span>
       </div>
