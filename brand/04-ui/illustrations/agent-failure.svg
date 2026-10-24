@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" role="img"><title>Mergit agent: work failed</title><style>.ink{stroke:#0E1018}.inkfill{fill:#0E1018}.face{fill:#FFFFFF}.angryface{fill:#F8D9D9}.acc{fill:#D13B3B}.acc2{fill:#1F6BFF}.accs{stroke:#D13B3B}.on-acc{stroke:#FFFFFF}@media (prefers-color-scheme:dark){.ink{stroke:#ECEEF2}.inkfill{fill:#ECEEF2}.face{fill:#121317}.angryface{fill:#3A1C1F}.acc{fill:#F0716C}.acc2{fill:#6E9BFF}.accs{stroke:#F0716C}.on-acc{stroke:#121317}}</style><g fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path class="accs" d="M48 40q-8 -8 0 -16M58 34q-6 -6 0 -12M192 40q8 -8 0 -16M182 34q6 -6 0 -12" stroke-width="4"/>
+  <path class="accs" d="M120 46l-5 -8 9 -4 -5 -9" stroke-width="5"/>
+  <path class="ink" d="M90 132L74 148M150 132L166 148" stroke-width="7"/>
+  <circle class="face ink" cx="72" cy="151" r="7" stroke-width="5"/><circle class="face ink" cx="168" cy="151" r="7" stroke-width="5"/>
+  <rect class="face ink" x="88" y="114" width="64" height="44" rx="22" stroke-width="5"/>
+  <circle class="acc" cx="120" cy="136" r="10" stroke="none"/>
+  <path class="on-acc" d="M116 132l8 8M124 132l-8 8" stroke-width="3.2"/>
+  <rect class="angryface ink" x="68" y="46" width="104" height="64" rx="32" stroke-width="5"/>
+  <path class="ink" d="M94 70l18 7M146 70l-18 7" stroke-width="5"/>
+  <circle class="inkfill" cx="104" cy="84" r="5"/><circle class="inkfill" cx="136" cy="84" r="5"/>
+  <path class="ink" d="M107 100q13 -9 26 0" stroke-width="5"/>
+</g></svg>

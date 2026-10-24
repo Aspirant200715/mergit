@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" role="img"><title>Mergit agent: work verified</title><style>.ink{stroke:#0E1018}.inkfill{fill:#0E1018}.face{fill:#FFFFFF}.angryface{fill:#F8D9D9}.acc{fill:#0E9F74}.acc2{fill:#1F6BFF}.accs{stroke:#0E9F74}.on-acc{stroke:#FFFFFF}@media (prefers-color-scheme:dark){.ink{stroke:#ECEEF2}.inkfill{fill:#ECEEF2}.face{fill:#121317}.angryface{fill:#3A1C1F}.acc{fill:#3CCB98}.acc2{fill:#6E9BFF}.accs{stroke:#3CCB98}.on-acc{stroke:#121317}}</style><g fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <rect class="acc" x="44" y="40" width="14" height="6" rx="3" transform="rotate(-30 51 43)" stroke="none"/>
+  <rect class="acc2" x="182" y="34" width="14" height="6" rx="3" transform="rotate(25 189 37)" stroke="none"/>
+  <rect class="acc2" x="36" y="96" width="12" height="5" rx="2.5" transform="rotate(20 42 98)" stroke="none"/>
+  <rect class="acc" x="190" y="92" width="12" height="5" rx="2.5" transform="rotate(-25 196 94)" stroke="none"/>
+  <circle class="acc" cx="66" cy="22" r="3.5" stroke="none"/><circle class="acc2" cx="176" cy="18" r="3" stroke="none"/>
+  <path class="ink" d="M120 46V32" stroke-width="5"/>
+  <circle class="acc" cx="120" cy="26" r="7" stroke="none"/>
+  <path class="ink" d="M90 128L68 104M150 128L172 104" stroke-width="7"/>
+  <circle class="face ink" cx="66" cy="101" r="7" stroke-width="5"/><circle class="face ink" cx="174" cy="101" r="7" stroke-width="5"/>
+  <rect class="face ink" x="88" y="114" width="64" height="44" rx="22" stroke-width="5"/>
+  <circle class="acc" cx="120" cy="136" r="10" stroke="none"/>
+  <path class="on-acc" d="M115.5 136.5l3 3 6-6.5" stroke-width="3.2"/>
+  <rect class="face ink" x="68" y="46" width="104" height="64" rx="32" stroke-width="5"/>
+  <path class="ink" d="M95 80q8-11 16 0M129 80q8-11 16 0" stroke-width="5"/>
+  <path class="ink" d="M107 91q13 11 26 0" stroke-width="5"/>
+  <circle class="acc" cx="90" cy="92" r="5" stroke="none" opacity=".55"/><circle class="acc" cx="150" cy="92" r="5" stroke="none" opacity=".55"/>
+</g></svg>
