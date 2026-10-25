@@ -3,6 +3,7 @@
 | Document | What it answers |
 | --- | --- |
 | [**PRD.md**](PRD.md) | What we are building, for whom, with which components and in what order |
+| [**HLD.md**](HLD.md) | How it is put together: components, trust boundaries and keys, data and state, interfaces, deployment by phase, and the decisions still open |
 | [legacy/](legacy/) | Superseded documents, kept for reference. Read the notice there before using any of it |
 
 ## The paper is upstream of all of this
