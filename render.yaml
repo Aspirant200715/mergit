@@ -1,0 +1,36 @@
+# Render Blueprint — the Mergit website and dashboard preview.
+#
+# This is a static site: the frontend has no backend yet and every screen reads from
+# frontend/src/mock/data.ts. Nothing it shows is measured. When the runtime exists it gets its
+# own service here; this one stays as it is.
+services:
+  - type: web
+    runtime: static
+    name: mergit-web
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
+    domains:
+      - mergit.site
+      - www.mergit.site
+    envVars:
+      # package.json requires node >=22.12; Render's default may be older.
+      - key: NODE_VERSION
+        value: 22.12.0
+    routes:
+      # The app uses createBrowserRouter, so /app and /app/proofs must resolve to index.html
+      # or a direct visit or a refresh returns 404.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
