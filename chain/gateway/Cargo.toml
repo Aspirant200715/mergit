@@ -6,3 +6,25 @@ version.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+mergit-chain-client.workspace = true
+mergit-spec.workspace = true
+alloy.workspace = true
+axum.workspace = true
+tower-http.workspace = true
+tokio.workspace = true
+sqlx.workspace = true
+uuid.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+mergit-chain-client = { workspace = true, features = ["testkit"] }
+mergit-receipt.workspace = true
+wiremock.workspace = true
+tower.workspace = true
+http-body-util.workspace = true

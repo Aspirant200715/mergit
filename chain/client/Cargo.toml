@@ -6,3 +6,16 @@ version.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+alloy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tokio = { workspace = true, optional = true }
+
+[features]
+# Spawns Anvil and deploys the contracts with mergit-contracts' Deploy script. Tests only.
+testkit = ["dep:tokio"]
+
+[dev-dependencies]
+tokio.workspace = true
+tempfile.workspace = true
