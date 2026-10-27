@@ -1,0 +1,131 @@
+from __future__ import annotations
+
+import json
+import threading
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from mergit_worker.config import WorkerConfig
+from mergit_worker.models import Job, RunOutcome
+from mergit_worker.worker import Worker, WorkerDeps
+from tests.support import (
+    FIX,
+    KEY,
+    KEY_ADDRESS,
+    REGISTRY,
+    ProcessSandbox,
+    RecordingPublisher,
+    ScriptedLLM,
+    make_harness_config,
+    make_job,
+    make_prices,
+    turn,
+)
+
+
+class FakeStore:
+    def __init__(self, jobs: list[Job]) -> None:
+        self.queue = list(jobs)
+        self.reports: list[RunOutcome] = []
+        self.failures: list[tuple[str, str]] = []
+
+    def claim(self) -> Job | None:
+        return self.queue.pop(0) if self.queue else None
+
+    def report(self, outcome: RunOutcome) -> None:
+        self.reports.append(outcome)
+
+    def fail(self, task_id: str, message: str) -> None:
+        self.failures.append((task_id, message))
+
+
+@pytest.fixture(autouse=True)
+def agent_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MERGIT_AGENT_KEY_1", KEY)
+
+
+@pytest.fixture
+def cfg(tmp_path: Path) -> WorkerConfig:
+    agents = tmp_path / "agents.json"
+    agents.write_text(json.dumps({"agents": [{"agent_id": "1", "name": "w", "runtime_key": KEY_ADDRESS}]}))
+    toml = tmp_path / "agents.toml"
+    toml.write_text('[agents.w]\nmodel = "test-model"\nsystem_prompt = "p"\n')
+    return WorkerConfig(
+        database_url="postgres://x",
+        gateway_url="http://g",
+        store_url="http://s",  # type: ignore[arg-type]
+        events_token="e",
+        store_write_token="s",
+        receipt_registry=REGISTRY,  # type: ignore[arg-type]
+        agents_file=agents,
+        agents_config=toml,
+        poll_interval_s=0.01,
+    )
+
+
+def make_worker(cfg: WorkerConfig, store: FakeStore, llm: Any, tmp_path: Path, made: list[ProcessSandbox]):
+    def factory(job: Job) -> ProcessSandbox:
+        sbx = ProcessSandbox.create(job.repo_url, job.ref, tmp_path / "ws")
+        made.append(sbx)
+        return sbx
+
+    deps = WorkerDeps(
+        store=store,
+        llm=llm,
+        prices=make_prices(),
+        publisher=RecordingPublisher(sealed=[]),
+        make_sandbox=factory,
+        harness=make_harness_config(),
+    )
+    return Worker(cfg, deps)
+
+
+def test_empty_queue_returns_false(cfg: WorkerConfig, tmp_path: Path):
+    assert make_worker(cfg, FakeStore([]), ScriptedLLM([]), tmp_path, []).run_once() is False
+
+
+def test_job_is_run_reported_and_sandbox_destroyed(cfg: WorkerConfig, repo_url: str, tmp_path: Path):
+    store, made = FakeStore([make_job(repo_url)]), []
+    worker = make_worker(cfg, store, ScriptedLLM([turn(FIX), turn(("finish", {}))]), tmp_path, made)
+    assert worker.run_once() is True
+    assert [(o.holds, o.task_id) for o in store.reports] == [(True, store.reports[0].task_id)]
+    assert store.failures == []
+    assert not made[0].workspace.work.exists()
+
+
+def test_a_crashing_job_is_failed_and_the_worker_goes_on(cfg: WorkerConfig, repo_url: str, tmp_path: Path):
+    bad = make_job(repo_url, attempt=2)  # task_id no longer matches: the harness refuses it
+    good = make_job(repo_url)
+    store, made = FakeStore([bad, good]), []
+    worker = make_worker(cfg, store, ScriptedLLM([turn(("finish", {}))]), tmp_path, made)
+    worker.run_once()
+    worker.run_once()
+    assert [t for t, _ in store.failures] == [bad.task_id]
+    assert "task_id" in store.failures[0][1]
+    assert [o.task_id for o in store.reports] == [good.task_id]
+    assert all(not s.workspace.work.exists() for s in made)  # both sandboxes cleaned up
+
+
+def test_unknown_agent_fails_the_job_without_a_sandbox(cfg: WorkerConfig, repo_url: str, tmp_path: Path):
+    store, made = FakeStore([make_job(repo_url, agent_id="9")]), []
+    make_worker(cfg, store, ScriptedLLM([]), tmp_path, made).run_once()
+    assert made == []
+    assert "agent '9'" in store.failures[0][1]
+
+
+def test_failure_message_never_contains_the_signing_key(cfg: WorkerConfig, repo_url: str, tmp_path: Path):
+    store = FakeStore([make_job(repo_url, attempt=2)])
+    make_worker(cfg, store, ScriptedLLM([]), tmp_path, []).run_once()
+    assert KEY not in store.failures[0][1]
+
+
+def test_run_forever_stops_when_asked(cfg: WorkerConfig, tmp_path: Path):
+    stop = threading.Event()
+    worker = make_worker(cfg, FakeStore([]), ScriptedLLM([]), tmp_path, [])
+    t = threading.Thread(target=worker.run_forever, args=(stop,))
+    t.start()
+    stop.set()
+    t.join(timeout=5)
+    assert not t.is_alive()
