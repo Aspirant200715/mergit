@@ -1,0 +1,19 @@
+[workspace]
+resolver = "3"
+members = [
+  "spec",
+  "runtime/receipt",
+  "runtime/py",
+  "verifier",
+  "verifier/wasm",
+  "evidence/store",
+  "evidence/validator",
+  "chain/client",
+  "chain/gateway",
+]
+
+[workspace.package]
+edition = "2024"
+license = "GPL-3.0-only"
+version = "0.1.0"
+rust-version = "1.98"

@@ -68,6 +68,22 @@ Delivery order, from [PRD §14](docs/PRD.md#14-delivery-phases):
 Documentation lived in a separate `mergit-docs` repository until October 2026 and now lives here
 under `docs/`.
 
+## Repository layout
+
+| Path | What | Language |
+| --- | --- | --- |
+| `spec/` | Receipt format, predicate, events, JSON Schemas, test vectors, and the `mergit-spec` crate that hashes them | Markdown, Rust |
+| `runtime/` | Receipt builder (`receipt/`) and its Python binding (`py/`, module `mergit_receipt`) | Rust |
+| `verifier/` | Receipt verifier library and `mergit-verify` CLI; `wasm/` builds it for the browser. Never imports `runtime/` | Rust |
+| `evidence/` | Receipt store (`store/`) and validator (`validator/`) | Rust |
+| `chain/` | Contract client (`client/`), chain gateway with payment path and free credits (`gateway/`), generated ABIs (`abi/`) | Rust |
+| `control-plane/` | Planner, task graph, approvals, router, agent workers | Python |
+| `frontend/` | Web app | TypeScript, React |
+| `deploy/` | Docker images, local compose, hosting | |
+| `docs/` | PRD, HLD, diagrams, build design and plans | |
+
+The v0 build is planned in [docs/superpowers/plans/](docs/superpowers/plans/).
+
 ## Repositories
 
 | | |
