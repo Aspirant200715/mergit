@@ -1,0 +1,122 @@
+{
+  "bundle": {
+    "blobs": {
+      "0x19ab7056e14d69c7880503d79f57b14337620d10826278da709731195ace0ddc": "eyJhbGxvd2VkX3BhdGhzIjpbInBheW1lbnRzLyoqIl0sImFydGlmYWN0X2hhc2hlcyI6bnVsbCwiY29tbWFuZCI6WyJweXRlc3QiLCJ0ZXN0cy90ZXN0X3JlZnVuZC5weSIsIi1xIl0sImV4cGVjdGVkX2V4aXQiOjAsImtpbmQiOiJleGVjLzAiLCJ0aW1lb3V0X3MiOjYwMCwid29ya2RpciI6Ii4ifQ==",
+      "0x58d2adb09a2adb3c11993948bf239b1d09aba4c6fcbcaa389442ff58797e7a1f": "MSBwYXNzZWQgaW4gMC4xMnM=",
+      "0xad4ed89216e981e5c270238e57f269d01228c9f8d85ec26d7759e9b5dd369182": "cHJvbXB0IG9yIGFyZ3Y=",
+      "0xd37053c8ba9b069245560ef869d557696983223f44ea0930f68f3ff73c7f3510": "eyJjaGFuZ2VkX3BhdGhzIjpbInBheW1lbnRzL3JlZnVuZC5weSJdLCJleGl0X2NvZGUiOjAsImhvbGRzIjp0cnVlLCJvYnNlcnZlZF9hcnRpZmFjdF9oYXNoZXMiOnt9LCJzdGRvdXRfZGlnZXN0IjoiMHg5YTE5ZThlZDIyYjNkZDlkMGUzMTk0ZGI4OTdhZDQ4ODVlYmI4OWY5NDk2MGFkMzhmYTU0MTAxN2VjOGI5NzY1In0="
+    },
+    "receipt": {
+      "body_hash": "0xef1211c1299b99e563dfef9bdaf162dc16586e9a0fb327eebe6c74332b629d63",
+      "ended_at": "2026-10-27T10:00:04.000Z",
+      "evidence": [
+        2,
+        3
+      ],
+      "header": {
+        "agent_id": "1",
+        "attestation": {
+          "dev_key": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "kind": "unattested"
+        },
+        "budget_usdc_units": "2000000",
+        "category": "test-repair",
+        "phi": {
+          "allowed_paths": [
+            "payments/**"
+          ],
+          "artifact_hashes": null,
+          "command": [
+            "pytest",
+            "tests/test_refund.py",
+            "-q"
+          ],
+          "expected_exit": 0,
+          "kind": "exec/0",
+          "timeout_s": 600,
+          "workdir": "."
+        },
+        "phi_hash": "0x19ab7056e14d69c7880503d79f57b14337620d10826278da709731195ace0ddc",
+        "plan_id": "0x05e2a97b051873a5cbc49722629a1791c8ff44a9a3abe2660a3f64847a581643",
+        "requester": "0x6e2d4a9c51b07f3e9d28c4a16b0e7f2c3d119a0b",
+        "runtime_image": "mergit-runtime:dev",
+        "started_at": "2026-10-27T10:00:00.000Z",
+        "task_id": "0x27cccb31d127fb312759aa19b3301504bb4adeb169f66cae4014b116a67158a1",
+        "version": "mergit-receipt/0"
+      },
+      "meter": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "tool_calls": 2,
+        "usd_micros": 2400,
+        "wall_ms": 300
+      },
+      "root": "0x7521d1cadbcfa91eec65aa16715b94ffc1c9654ba57ea2ef1a2127bca1127a83",
+      "signature": "0x40ad3548622a1ff42b1015019aa91cb7178840dc4f0aba6853476c53f6cb6a42162e0f08b9da52341b5b71c28e590f92adef05566d52b27b3b16e685e1eb3f861b",
+      "steps": [
+        {
+          "at": "2026-10-27T10:00:01.000Z",
+          "cost": {
+            "input_tokens": 0,
+            "model": null,
+            "output_tokens": 0,
+            "tool_calls": 1,
+            "usd_micros": 1200,
+            "wall_ms": 100
+          },
+          "exit_status": null,
+          "input_digest": "0xad4ed89216e981e5c270238e57f269d01228c9f8d85ec26d7759e9b5dd369182",
+          "output_digest": "0xaa6fa0bc6758b9ce56537911e97ebefcee7bd41213900e49097a96811c8e2126",
+          "seq": 1,
+          "type": "model_call"
+        },
+        {
+          "at": "2026-10-27T10:00:03.000Z",
+          "cost": {
+            "input_tokens": 0,
+            "model": null,
+            "output_tokens": 0,
+            "tool_calls": 1,
+            "usd_micros": 1200,
+            "wall_ms": 100
+          },
+          "exit_status": 0,
+          "input_digest": "0xad4ed89216e981e5c270238e57f269d01228c9f8d85ec26d7759e9b5dd369182",
+          "output_digest": "0x58d2adb09a2adb3c11993948bf239b1d09aba4c6fcbcaa389442ff58797e7a1f",
+          "seq": 2,
+          "type": "command"
+        },
+        {
+          "at": "2026-10-27T10:00:04.000Z",
+          "cost": {
+            "input_tokens": 0,
+            "model": null,
+            "output_tokens": 0,
+            "tool_calls": 0,
+            "usd_micros": 0,
+            "wall_ms": 100
+          },
+          "exit_status": 0,
+          "input_digest": "0x19ab7056e14d69c7880503d79f57b14337620d10826278da709731195ace0ddc",
+          "output_digest": "0xd37053c8ba9b069245560ef869d557696983223f44ea0930f68f3ff73c7f3510",
+          "seq": 3,
+          "type": "phi_eval"
+        }
+      ],
+      "terminal_hash": "0xaf5d683fbbf2143cde898edef321aec0ca590ee89e6b9af9af8bb46228e0af11"
+    }
+  },
+  "commitment": null,
+  "domain": {
+    "chain_id": 84532,
+    "registry": "0x0000000000000000000000000000000000000001"
+  },
+  "expect": {
+    "reasons": [
+      "ROOT_MISMATCH"
+    ],
+    "status": "invalid"
+  },
+  "name": "root_mismatch",
+  "signer": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+}

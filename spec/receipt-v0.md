@@ -11,7 +11,8 @@ signed by the runtime. Version 0 has no TEE: every receipt says so, and no verif
 
 - **Hash:** keccak-256. Written as `0x` plus 64 lowercase hex characters.
 - **Canonical JSON:** RFC 8785 (JCS). `H(x)` below means `keccak256(JCS(x))`.
-- **Address:** `0x` plus 40 hex characters; compared case-insensitively.
+- **Address:** `0x` plus 40 hex characters. Inputs may use any case; inside every hashed object addresses are
+  written in lowercase, which is how the Rust crates serialise them.
 - **Amounts:** USDC base units (6 decimals) as decimal strings.
 - **Time:** RFC 3339 in UTC, milliseconds, `Z` suffix.
 
@@ -121,6 +122,7 @@ outcome.
 | `BLOB_DIGEST_MISMATCH` | A blob's keccak-256 differs from its key |
 | `PHI_RESULT_CONTRADICTED` | Recorded `holds` differs from the recomputation in [predicate-v0.md](predicate-v0.md) |
 | `COMMITMENT_MISMATCH` | Root, terminal hash, body hash or cost differs from the on-chain commitment |
+| `ATTESTATION_UNSUPPORTED` | The attestation kind is not `unattested`; a v0 verifier cannot check it, so the receipt is invalid |
 | `UNATTESTED` | Informational: the receipt carries no hardware attestation. Present on every v0 receipt |
 
 ## Verdicts
