@@ -14,6 +14,7 @@ from .jobs import JobStore
 from .llm import LLM
 from .meter import PriceTable
 from .models import Job
+from .pr_worker import PrHandler
 from .progress import NullProgressReporter, ProgressReporter
 from .sandbox import SandboxPort
 
@@ -31,6 +32,7 @@ class WorkerDeps:
     make_sandbox: SandboxFactory
     harness: HarnessConfig
     progress: ProgressReporter = field(default_factory=NullProgressReporter)
+    pr: PrHandler | None = None  # present only when a GitHub token is configured
 
 
 class Worker:
@@ -39,10 +41,10 @@ class Worker:
         self._deps = deps
 
     def run_once(self) -> bool:
-        """Handle at most one job. Returns False when the queue was empty."""
+        """Handle at most one job or approved PR request. Returns False when both queues were empty."""
         job = self._deps.store.claim()
         if job is None:
-            return False
+            return self._deps.pr.run_once() if self._deps.pr is not None else False
         log.info("claimed task %s (agent %s, attempt %d)", job.task_id, job.agent_id, job.attempt)
         try:
             self._run(job)

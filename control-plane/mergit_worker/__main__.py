@@ -6,14 +6,19 @@ import logging
 import signal
 import socket
 import threading
+from dataclasses import dataclass
+
+from mergit_cp.pr_store import PgPrStore
 
 from .agents import validate_agents_are_priced
 from .config import ConfigError, WorkerConfig, load_config
+from .github import GitHubConfig, GitHubPrOpener
 from .harness import HarnessConfig
 from .jobs import PgJobStore
 from .llm import AnthropicLLM
 from .meter import PriceTable
 from .models import Job
+from .pr_worker import PrHandler
 from .progress import HttpProgressReporter, NullProgressReporter, ProgressReporter
 from .publish import ReceiptPublisher
 from .sandbox import Sandbox, SandboxConfig, reap_stale
@@ -35,7 +40,41 @@ def build_progress_reporter(cfg: WorkerConfig) -> ProgressReporter:
     return NullProgressReporter()
 
 
-def build_worker(cfg: WorkerConfig, worker_id: str) -> tuple[Worker, PgJobStore]:
+@dataclass
+class Built:
+    worker: Worker
+    jobs: PgJobStore
+    prs: PgPrStore | None
+
+    def close(self) -> None:
+        self.jobs.close()
+        if self.prs is not None:
+            self.prs.close()
+
+
+def build_pr_handler(cfg: WorkerConfig, worker_id: str) -> tuple[PrHandler, PgPrStore] | None:
+    """The PR gate runs only where a GitHub token is configured, and only in this process."""
+    if cfg.github_token is None:
+        return None
+    store = PgPrStore.connect(cfg.database_url.get_secret_value(), worker_id)
+    opener = GitHubPrOpener(
+        GitHubConfig(
+            token=cfg.github_token.get_secret_value(),
+            api_url=cfg.github_api_url,
+            git_base_url=cfg.github_git_base_url,
+            hosts=cfg.github_hosts,
+            app_base_url=cfg.app_base_url,
+            author_name=cfg.pr_author_name,
+            author_email=cfg.pr_author_email,
+            workspace_root=cfg.sandbox_workspace_root,
+            git=GitLimits(cfg.sandbox_allowed_url_schemes, cfg.git_timeout_s),
+            http_timeout_s=cfg.http_timeout_s,
+        )
+    )
+    return PrHandler(store, opener), store
+
+
+def build_worker(cfg: WorkerConfig, worker_id: str) -> Built:
     sandbox_cfg = SandboxConfig(
         image=cfg.sandbox_image,
         memory=cfg.sandbox_memory,
@@ -54,6 +93,7 @@ def build_worker(cfg: WorkerConfig, worker_id: str) -> tuple[Worker, PgJobStore]
     prices = PriceTable.load(cfg.prices_file)
     validate_agents_are_priced(cfg.agents_file, cfg.agents_config, prices)
     store = PgJobStore.connect(cfg.database_url.get_secret_value(), worker_id)
+    pr = build_pr_handler(cfg, worker_id)
     deps = WorkerDeps(
         store=store,
         llm=AnthropicLLM(timeout_s=cfg.http_timeout_s * 20),
@@ -68,6 +108,7 @@ def build_worker(cfg: WorkerConfig, worker_id: str) -> tuple[Worker, PgJobStore]
         ),
         make_sandbox=make_sandbox,
         progress=build_progress_reporter(cfg),
+        pr=pr[0] if pr else None,
         harness=HarnessConfig(
             chain_id=cfg.chain_id,
             registry=cfg.receipt_registry,
@@ -77,6 +118,7 @@ def build_worker(cfg: WorkerConfig, worker_id: str) -> tuple[Worker, PgJobStore]
             model_max_tokens=cfg.model_max_tokens,
             max_output_bytes=cfg.max_output_bytes,
             max_hash_bytes=cfg.max_hash_bytes,
+            max_patch_bytes=cfg.max_patch_bytes,
             tool_limits=ToolLimits(
                 command_timeout_s=cfg.command_timeout_s,
                 max_output_bytes=cfg.max_output_bytes,
@@ -85,7 +127,7 @@ def build_worker(cfg: WorkerConfig, worker_id: str) -> tuple[Worker, PgJobStore]
             ),
         ),
     )
-    return Worker(cfg, deps), store
+    return Built(Worker(cfg, deps), store, pr[1] if pr else None)
 
 
 def main() -> int:
@@ -98,12 +140,16 @@ def main() -> int:
         return 2
 
     worker_id = cfg.worker_id or socket.gethostname()
-    worker, store = build_worker(cfg, worker_id)
-    log.info("failed %d jobs this worker left running before a restart", store.fail_own_running())
+    built = build_worker(cfg, worker_id)
+    log.info("failed %d jobs this worker left running before a restart", built.jobs.fail_own_running())
     log.info(
         "reclaimed %d jobs left running past their lease by any worker",
-        store.reclaim_stale(cfg.job_lease_s),
+        built.jobs.reclaim_stale(cfg.job_lease_s),
     )
+    if built.prs is not None:
+        log.info("requeued %d PR requests", built.prs.requeue_own_running())
+    else:
+        log.info("no GITHUB_TOKEN: pull-request requests will not be handled by this worker")
     log.info("removed %d stale sandbox containers", reap_stale(worker_id))
 
     stop = threading.Event()
@@ -114,9 +160,9 @@ def main() -> int:
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, request_stop)
     try:
-        worker.run_forever(stop)
+        built.worker.run_forever(stop)
     finally:
-        store.close()
+        built.close()
     return 0
 
 

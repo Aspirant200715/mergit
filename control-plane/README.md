@@ -93,6 +93,33 @@ for one task. A fresh attempt is a new `task_id`, decided by plan task O6, not a
 start-up sweeps above): a worker process runs for a long time, and losing its one connection must not be
 fatal to it.
 
+## Pull-request gate (plan task O9)
+
+When every task of a plan has passed Φ, the requester reviews the combined diff and approves; the worker then
+opens the pull request.
+
+- `GET /v0/plans/{plan_uuid}/diff` shows the stored change of each passing task, in task order.
+- `POST /v0/plans/{plan_uuid}/open-pr` is the requester's approval. It records a `pr_requests` row
+  (`migrations/0009_pr_requests.sql`) and returns `202`; asking again returns the same request, and a request
+  that ended in an error is queued again. Only the plan's requester may call it (`403` otherwise), and it is
+  refused with `409` and the list of blockers unless the plan is `done` **and** every task has a passing
+  attempt with a stored patch. The plan state alone is not trusted.
+- `GET /v0/plans/{plan_uuid}/pr` returns status, branch, commit SHA, PR number and URL.
+
+The API holds no GitHub token. The worker, the only process with `GITHUB_TOKEN`, claims the request,
+re-checks the gate, applies each task's patch in order onto a fresh checkout of the plan's base ref, makes one
+commit, force-pushes it to `mergit/<plan_uuid>` (a branch Mergit owns) and opens the PR. The PR body links each
+task's receipt at `{APP_BASE_URL}/app/proofs/<task_id>` and says the receipts are unattested. Branch, commit
+SHA and PR number are recorded on the request.
+
+The token is used in the `Authorization` header of API calls and in the environment of the single `git push`
+process, as an HTTP header. It is never in a sandbox, a prompt, a URL, argv or a file. A worker started without
+`GITHUB_TOKEN` runs tasks but ignores PR requests. Settings: `GITHUB_TOKEN`, `GITHUB_API_URL`,
+`GITHUB_GIT_BASE_URL`, `GITHUB_HOSTS`, `APP_BASE_URL`, `PR_AUTHOR_NAME`, `PR_AUTHOR_EMAIL`.
+
+`mergit_cp.routes_pr.build_router(get_requester, get_store)` takes the session and store dependencies, so the
+app from O1 mounts it with its own SIWE session.
+
 ## Develop
 
 ```bash
@@ -106,7 +133,7 @@ uv run pytest -m "docker or postgres"          # real sandbox and real Postgres 
 
 ## Not done here
 
-Tracked by other plan tasks and issue #12 bullets: credential broker and GitHub App (O9), outcomes and retries
+Tracked by other plan tasks and issue #12 bullets: credential broker, GitHub App install flow and signed webhooks, outcomes and retries
 (O6, which reads `jobs.phi_holds`), API and SSE (O7), egress allowlist, receipt body encryption (K4), data
 availability checks, additional agents, evals, failure injection, and hosting (O10). gVisor is wired through
 `SANDBOX_RUNTIME` but has not been exercised in CI.
