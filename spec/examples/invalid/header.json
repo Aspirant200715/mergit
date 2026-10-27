@@ -1,0 +1,31 @@
+{
+  "version": "mergit-receipt/0",
+  "task_id": "0x1111111111111111111111111111111111111111111111111111111111111111",
+  "plan_id": "0x2222222222222222222222222222222222222222222222222222222222222222",
+  "requester": "0x6E2d4A9c51b07f3e9d28c4a16b0e7f2c3d119A0b",
+  "agent_id": "1",
+  "category": "test-repair",
+  "phi": {
+    "kind": "exec/0",
+    "command": [
+      "pytest",
+      "tests/test_refund.py",
+      "-q"
+    ],
+    "expected_exit": 0,
+    "workdir": ".",
+    "allowed_paths": [
+      "payments/**"
+    ],
+    "artifact_hashes": null,
+    "timeout_s": 600
+  },
+  "phi_hash": "0x3333333333333333333333333333333333333333333333333333333333333333",
+  "budget_usdc_units": "2000000",
+  "runtime_image": "mergit-runtime:dev",
+  "attestation": {
+    "kind": "tee",
+    "dev_key": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+  },
+  "started_at": "2026-10-27T10:00:00.000Z"
+}

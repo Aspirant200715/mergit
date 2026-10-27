@@ -1,0 +1,8 @@
+{
+  "exit_code": 0,
+  "changed_paths": [
+    "payments/refund.py"
+  ],
+  "observed_artifact_hashes": {},
+  "stdout_digest": "0x6666666666666666666666666666666666666666666666666666666666666666"
+}

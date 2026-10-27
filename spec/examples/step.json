@@ -1,0 +1,16 @@
+{
+  "seq": 1,
+  "type": "phi_eval",
+  "input_digest": "0x4444444444444444444444444444444444444444444444444444444444444444",
+  "output_digest": "0x5555555555555555555555555555555555555555555555555555555555555555",
+  "exit_status": 0,
+  "cost": {
+    "model": null,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "tool_calls": 0,
+    "wall_ms": 1840,
+    "usd_micros": 0
+  },
+  "at": "2026-10-27T10:00:02.000Z"
+}

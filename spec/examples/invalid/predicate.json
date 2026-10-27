@@ -1,0 +1,15 @@
+{
+  "kind": "exec/0",
+  "command": [
+    "pytest",
+    "tests/test_refund.py",
+    "-q"
+  ],
+  "expected_exit": 0,
+  "workdir": "../outside",
+  "allowed_paths": [
+    "payments/**"
+  ],
+  "artifact_hashes": null,
+  "timeout_s": 600
+}
