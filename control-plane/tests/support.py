@@ -113,6 +113,7 @@ def make_harness_config(**over: Any) -> HarnessConfig:
         "model_max_tokens": 1024,
         "max_output_bytes": 1_048_576,
         "max_hash_bytes": 1_048_576,
+        "max_patch_bytes": 1_048_576,
         "tool_limits": ToolLimits(
             command_timeout_s=30,
             max_output_bytes=1_048_576,

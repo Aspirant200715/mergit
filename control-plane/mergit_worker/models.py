@@ -55,3 +55,4 @@ class RunOutcome:
     holds: bool | None
     root: str | None = None
     notes: list[str] = field(default_factory=lambda: list[str]())
+    patch: str | None = None  # the passing change, for the PR gate (plan task O9)

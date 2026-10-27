@@ -176,3 +176,11 @@ def test_missing_plan_or_task_row_fails_the_job_instead_of_hanging(dsn: str, db:
     assert PgJobStore.connect(dsn, "w1").claim() is None
     row = db.execute("SELECT status, notes FROM jobs WHERE task_id = %s", (task_id,)).fetchone()
     assert row["status"] == "error"
+
+
+def test_passing_patch_is_stored_and_failures_store_none(dsn: str, db: Any):
+    (task_id,) = seed(db)
+    store = PgJobStore.connect(dsn, "w1")
+    store.claim()
+    store.report(RunOutcome(task_id, True, "0xroot", ["finished"], patch="diff --git a/x b/x\n"))
+    assert db.execute("SELECT patch FROM jobs").fetchone()["patch"] == "diff --git a/x b/x\n"

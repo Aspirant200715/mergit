@@ -7,7 +7,9 @@ CREATE TABLE plans (
     requester text NOT NULL,
     repo_url text NOT NULL,
     ref text NOT NULL,
-    category text NOT NULL
+    category text NOT NULL,
+    goal text NOT NULL DEFAULT '',          -- O3
+    state text NOT NULL DEFAULT 'draft'     -- O3/O6: draft | approved | funded | running | done | failed | closed
 );
 
 CREATE TABLE tasks (
@@ -33,5 +35,6 @@ CREATE TABLE jobs (
     phi_holds boolean,      -- worker; NULL while unfinished, and when Φ was inconclusive
     receipt_root text,      -- worker
     notes text,             -- worker
+    patch text,             -- worker; the change of a task that passed Φ, NULL otherwise
     finished_at timestamptz -- worker
 );

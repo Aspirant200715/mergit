@@ -45,7 +45,7 @@ WHERE j.task_id = %(task_id)s
 
 _REPORT = """
 UPDATE jobs SET status = %(status)s, phi_holds = %(holds)s, receipt_root = %(root)s,
-                notes = %(notes)s, finished_at = now()
+                notes = %(notes)s, patch = %(patch)s, finished_at = now()
 WHERE task_id = %(task_id)s AND status = 'running' AND claimed_by = %(worker)s
 """
 
@@ -151,13 +151,23 @@ class PgJobStore:
 
     def report(self, outcome: RunOutcome) -> None:
         """Store the Φ result (`holds` is None when Φ could not run) on the job row for O6."""
-        self._finish(outcome.task_id, "done", outcome.holds, outcome.root, "; ".join(outcome.notes))
+        self._finish(
+            outcome.task_id, "done", outcome.holds, outcome.root, "; ".join(outcome.notes), outcome.patch
+        )
 
     def fail(self, task_id: str, message: str) -> None:
         """The task could not be run or sealed. `phi_holds` stays NULL: inconclusive, a person decides."""
-        self._finish(task_id, "error", None, None, message[:2000])
+        self._finish(task_id, "error", None, None, message[:2000], None)
 
-    def _finish(self, task_id: str, status: str, holds: bool | None, root: str | None, notes: str) -> None:
+    def _finish(
+        self,
+        task_id: str,
+        status: str,
+        holds: bool | None,
+        root: str | None,
+        notes: str,
+        patch: str | None,
+    ) -> None:
         self._retrying(
             lambda: self._conn.execute(
                 _REPORT,
@@ -167,6 +177,7 @@ class PgJobStore:
                     "holds": holds,
                     "root": root,
                     "notes": notes,
+                    "patch": patch,
                     "worker": self._worker,
                 },
             )

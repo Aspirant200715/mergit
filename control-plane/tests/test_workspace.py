@@ -215,3 +215,22 @@ def test_opening_a_fifo_does_not_hang(sandbox: ProcessSandbox):
     os.mkfifo(sandbox.workspace.work / "pipe")
     with pytest.raises(WorkspaceError, match="not a regular file"):
         sandbox.workspace.read_file("pipe", 10)
+
+
+def test_git_work_tree_commands_run_in_the_checkout_not_the_callers_directory(
+    sandbox: ProcessSandbox, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """With --git-dir and --work-tree, git takes the current directory as the work-tree root. A patch applied
+    from the wrong directory once wrote files into the caller's cwd."""
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    patch = (
+        "diff --git a/docs/notes.md b/docs/notes.md\n--- a/docs/notes.md\n+++ b/docs/notes.md\n"
+        "@@ -1 +1,2 @@\n notes\n+more\n"
+    )
+    sandbox.workspace.apply_patch(patch)
+    sha = sandbox.workspace.commit_all("m", "n", "n@example.test")
+    assert len(sha) == 40
+    assert list(elsewhere.iterdir()) == []
+    assert (sandbox.workspace.work / "docs" / "notes.md").read_text() == "notes\nmore\n"

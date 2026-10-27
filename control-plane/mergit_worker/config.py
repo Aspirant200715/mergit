@@ -42,10 +42,21 @@ class WorkerConfig(BaseSettings):
     sandbox_workspace_root: Path = Path("/var/lib/mergit/workspaces")
     runtime_image: str = "mergit-runtime:dev"
 
+    # Pull-request gate (O9). The token exists only in the worker's environment. Without it the worker
+    # still runs tasks and simply never picks up PR requests.
+    github_token: SecretStr | None = None
+    github_api_url: str = "https://api.github.com"
+    github_git_base_url: str = "https://github.com"
+    github_hosts: tuple[str, ...] = ("github.com",)
+    app_base_url: str = "https://app.mergit.site"
+    pr_author_name: str = "mergit"
+    pr_author_email: str = "mergit@users.noreply.github.com"
+
     max_steps: int = Field(default=60, ge=1)
     max_output_bytes: int = Field(default=1_048_576, ge=1)
     max_write_bytes: int = Field(default=1_048_576, ge=1)
     max_hash_bytes: int = Field(default=64 * 1024 * 1024, ge=1)
+    max_patch_bytes: int = Field(default=5 * 1024 * 1024, ge=1)
     model_output_bytes: int = Field(default=32_768, ge=1024)
     command_timeout_s: int = Field(default=300, ge=1, le=3600)
     git_timeout_s: float = Field(default=300.0, gt=0)
