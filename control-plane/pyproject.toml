@@ -4,4 +4,57 @@ version = "0.1.0"
 description = "Mergit orchestration: planner, task graph, agent workers"
 requires-python = ">=3.12"
 license = "GPL-3.0-only"
-dependencies = []
+dependencies = [
+  "anthropic>=1.0",
+  "docker>=7.1",
+  "httpx>=0.28",
+  "jsonschema>=4.23",
+  "mergit-receipt",
+  "psycopg[binary]>=3.2",
+  "pydantic>=2.9",
+  "pydantic-settings>=2.6",
+]
+
+[dependency-groups]
+dev = [
+  "pyright>=1.1.390",
+  "pytest>=8.3",
+  "respx>=0.22",
+  "ruff>=0.8",
+  "testcontainers[postgres]>=4.9",
+]
+
+[tool.uv.sources]
+mergit-receipt = { path = "../runtime/py" }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mergit_worker"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "docker: needs a Docker daemon and the sandbox image; run with `pytest -m docker`",
+  "postgres: needs Docker to start a Postgres container",
+]
+addopts = "-m 'not docker and not postgres'"
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "S", "RUF"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "B011"]
+
+[tool.pyright]
+# Strict for the shipped package. Tests (untyped fixtures and doubles) are covered by ruff and pytest.
+include = ["mergit_worker"]
+typeCheckingMode = "strict"
+pythonVersion = "3.12"
