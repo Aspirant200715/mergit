@@ -1,0 +1,8 @@
+target/
+**/node_modules/
+frontend/dist/
+**/__pycache__/
+.venv/
+.superpowers/
+.env
+deploy/secrets/

@@ -1,0 +1,88 @@
+# The whole stack on one machine, against a local Anvil chain with mock USDC. Nothing touches a real network.
+#   docker compose -f deploy/compose.yaml up --build
+# Needs mergit-contracts checked out next to this repository (../mergit-contracts).
+# The keys below are Anvil's public test keys (accounts 0, 2, 3, 4). Never use them anywhere real.
+
+x-rust: &rust
+  build: { context: .., dockerfile: deploy/docker/rust.Dockerfile }
+  image: mergit-rust:local
+  restart: unless-stopped
+  environment: &chain
+    RPC_URL: http://anvil:8545
+    DEPLOYMENT_FILE: /deployments/local.json
+    RUST_LOG: info
+  volumes:
+    - ../../mergit-contracts/deployments:/deployments:ro
+  depends_on:
+    deploy: { condition: service_completed_successfully }
+
+services:
+  postgres:
+    image: postgres:16
+    environment: { POSTGRES_PASSWORD: mergit, POSTGRES_DB: mergit }
+    healthcheck: { test: ["CMD", "pg_isready", "-U", "postgres"], interval: 2s, retries: 30 }
+
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:latest
+    entrypoint: ["anvil", "--host", "0.0.0.0"]
+    ports: ["8545:8545"]
+
+  deploy:
+    image: ghcr.io/foundry-rs/foundry:latest
+    working_dir: /contracts
+    volumes: ["../../mergit-contracts:/contracts"]
+    depends_on: [anvil]
+    environment:
+      DEPLOYMENT_NAME: local
+      GATEWAY_ADDR: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+      VALIDATOR_ADDR: "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
+      TREASURY_ADDR: "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65"
+      ADJUDICATOR_ADDR: "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65"
+    entrypoint:
+      - sh
+      - -c
+      - forge script script/Deploy.s.sol --rpc-url http://anvil:8545 --broadcast
+        --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+
+  store:
+    <<: *rust
+    command: ["mergit-store"]
+    environment: { STORE_DATA_DIR: /data, STORE_ADDR: "0.0.0.0:8081", STORE_WRITE_TOKEN: local-store-token }
+    ports: ["8081:8081"]
+    depends_on: []
+
+  validator:
+    <<: *rust
+    command: ["mergit-validator"]
+    environment:
+      <<: *chain
+      VALIDATOR_KEY: "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6"
+      STORE_URL: http://store:8081
+      AUDIT_P: "1.0"
+      VALIDATOR_DATA_DIR: /data
+      VALIDATOR_ADDR: "0.0.0.0:8083"
+      AUDIT_TOKEN: local-audit-token
+    ports: ["8083:8083"]
+
+  gateway:
+    <<: *rust
+    command: ["mergit-gateway"]
+    environment:
+      <<: *chain
+      DATABASE_URL: postgres://postgres:mergit@postgres:5432/mergit
+      GATEWAY_KEY: "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"
+      TREASURY_KEY: "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a"
+      ORCHESTRATOR_URL: http://api:8000
+      VALIDATOR_URL: http://validator:8083
+      CONFIRMATIONS: "0"
+      GATEWAY_ADDR: "0.0.0.0:8082"
+      EVENTS_TOKEN: local-events-token
+      AUDIT_TOKEN: local-audit-token
+    ports: ["8082:8082"]
+    depends_on:
+      deploy: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+
+  # The orchestration API and the agent worker are added by the orchestration track (plan task O10):
+  # api:    { build: ../control-plane, ports: ["8000:8000"], ... }
+  # worker: { build: { context: ../control-plane, dockerfile: worker.Dockerfile }, ... }

@@ -1,8 +1,11 @@
-# Render Blueprint — the Mergit website and dashboard preview.
+# Render Blueprint.
 #
-# This is a static site: the frontend has no backend yet and every screen reads from
-# frontend/src/mock/data.ts. Nothing it shows is measured. When the runtime exists it gets its
-# own service here; this one stays as it is.
+# mergit-web is the public site at mergit.site: the design over mock data (frontend/src/mock), unchanged.
+# mergit-app is the same frontend on live data at app.mergit.site, on Base Sepolia testnet money only.
+# The Rust services share one image (deploy/docker/rust.Dockerfile) and pick their binary as the command.
+# Every secret is `sync: false`: set it in the Render dashboard, never in this file.
+# Plans with disks are paid; which plans to buy is the team's call. The orchestration API (mergit-api)
+# and the agent worker VM are added by the orchestration track (task O10).
 services:
   - type: web
     runtime: static
@@ -34,3 +37,140 @@ services:
       - path: /assets/*
         name: Cache-Control
         value: public, max-age=31536000, immutable
+
+  - type: web
+    runtime: static
+    name: mergit-app
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
+    domains:
+      - app.mergit.site
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: VITE_DATA_MODE
+        value: live
+      - key: VITE_CHAIN_ID
+        value: "84532"
+      - key: VITE_CHAIN_NAME
+        value: Base Sepolia
+      - key: VITE_RPC_URL
+        value: https://sepolia.base.org
+      - key: VITE_USDC
+        value: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+      # From deployments/base-sepolia.json and the service URLs below, set after the first deploy.
+      - key: VITE_API_URL
+        sync: false
+      - key: VITE_GATEWAY_URL
+        sync: false
+      - key: VITE_STORE_URL
+        sync: false
+      - key: VITE_ESCROW
+        sync: false
+      - key: VITE_RECEIPT_REGISTRY
+        sync: false
+      - key: VITE_IDENTITY
+        sync: false
+      - key: VITE_DEPLOY_BLOCK
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+
+  - type: web
+    runtime: docker
+    name: mergit-store
+    plan: starter
+    dockerfilePath: ./deploy/docker/rust.Dockerfile
+    dockerContext: .
+    dockerCommand: mergit-store
+    healthCheckPath: /healthz
+    disk:
+      name: receipts
+      mountPath: /data
+      sizeGB: 5
+    envVars:
+      - key: STORE_DATA_DIR
+        value: /data
+      - key: STORE_ADDR
+        value: 0.0.0.0:10000
+      - key: STORE_WRITE_TOKEN
+        sync: false
+
+  - type: web
+    runtime: docker
+    name: mergit-validator
+    plan: starter
+    dockerfilePath: ./deploy/docker/rust.Dockerfile
+    dockerContext: .
+    dockerCommand: mergit-validator
+    healthCheckPath: /healthz
+    disk:
+      name: audits
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: VALIDATOR_ADDR
+        value: 0.0.0.0:10000
+      - key: VALIDATOR_DATA_DIR
+        value: /data
+      - key: AUDIT_P
+        value: "1.0"
+      - key: RPC_URL
+        sync: false
+      - key: DEPLOYMENT_JSON
+        sync: false
+      - key: VALIDATOR_KEY
+        sync: false
+      - key: STORE_URL
+        sync: false
+      - key: AUDIT_TOKEN
+        sync: false
+
+  - type: web
+    runtime: docker
+    name: mergit-gateway
+    plan: starter
+    dockerfilePath: ./deploy/docker/rust.Dockerfile
+    dockerContext: .
+    dockerCommand: mergit-gateway
+    healthCheckPath: /healthz
+    envVars:
+      - key: GATEWAY_ADDR
+        value: 0.0.0.0:10000
+      - key: CONFIRMATIONS
+        value: "2"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mergit-db
+          property: connectionString
+      - key: RPC_URL
+        sync: false
+      - key: DEPLOYMENT_JSON
+        sync: false
+      - key: GATEWAY_KEY
+        sync: false
+      - key: TREASURY_KEY
+        sync: false
+      - key: ORCHESTRATOR_URL
+        sync: false
+      - key: VALIDATOR_URL
+        sync: false
+      - key: EVENTS_TOKEN
+        sync: false
+      - key: AUDIT_TOKEN
+        sync: false
+
+databases:
+  - name: mergit-db
+    plan: basic-256mb
