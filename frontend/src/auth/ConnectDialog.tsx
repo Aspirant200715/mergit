@@ -3,16 +3,23 @@ import { useNavigate } from "react-router-dom";
 import { paths } from "../app/paths";
 import { Icon } from "../components/Icon";
 import { MergitSymbol } from "../components/MergitLogo";
+import { connectAndSignIn } from "../chain/wallet";
+import { DATA_MODE } from "../config/live";
 import { useAuth } from "./context";
 import { connectWallet, DEMO_ADDRESS, randomNonce, short, signInMessage, type WalletKind } from "./session";
 
-const WALLETS: { kind: WalletKind; label: string; detected?: boolean }[] = [
+const ALL_WALLETS: { kind: WalletKind; label: string; detected?: boolean }[] = [
   { kind: "browser", label: "Browser wallet", detected: true },
   { kind: "walletconnect", label: "WalletConnect" },
   { kind: "passkey", label: "Passkey" },
 ];
+/** On live data the browser wallet is the only way in (Sign-In with Ethereum). */
+const WALLETS = DATA_MODE === "live" ? ALL_WALLETS.filter((w) => w.kind === "browser") : ALL_WALLETS;
 
-type Step = { name: "choose" } | { name: "signing"; nonce: string } | { name: "connected"; nonce: string };
+type Step =
+  | { name: "choose"; error?: string }
+  | { name: "signing"; nonce: string; message?: string }
+  | { name: "connected"; nonce: string; message?: string; address?: string };
 
 /** How long "Connected" stays up before the dashboard comes into focus. */
 const CONNECTED_HOLD_MS = 700;
@@ -42,7 +49,33 @@ export function ConnectDialog() {
     };
   }, [cancel]);
 
+  const chooseLive = () => {
+    setStep({ name: "signing", nonce: "" });
+    connectAndSignIn((message) => {
+      setStep({ name: "signing", nonce: "", message });
+    }).then(
+      (session) => {
+        setStep((s) => ({
+          name: "connected",
+          nonce: "",
+          message: s.name === "signing" ? s.message : undefined,
+          address: session.addressShort,
+        }));
+        window.setTimeout(() => {
+          signIn(session);
+        }, CONNECTED_HOLD_MS);
+      },
+      (e: unknown) => {
+        setStep({ name: "choose", error: e instanceof Error ? e.message : String(e) });
+      },
+    );
+  };
+
   const choose = (wallet: WalletKind) => {
+    if (DATA_MODE === "live") {
+      chooseLive();
+      return;
+    }
     const nonce = randomNonce();
     setStep({ name: "signing", nonce });
     const controller = new AbortController();
@@ -84,6 +117,11 @@ export function ConnectDialog() {
           Sign in with your wallet. Your agents&apos; proofs settle to this address.
         </p>
 
+        {step.name === "choose" && step.error && (
+          <p className="small cr" role="alert">
+            {step.error}
+          </p>
+        )}
         {step.name === "choose" ? (
           <ul className="connect-options">
             {WALLETS.map((w, i) => (
@@ -104,7 +142,11 @@ export function ConnectDialog() {
           </ul>
         ) : (
           <div className="col g12 page-enter">
-            <pre className="connect-message">{signInMessage(DEMO_ADDRESS, step.nonce)}</pre>
+            <pre className="connect-message">
+              {DATA_MODE === "live"
+                ? (step.message ?? "Connecting to your wallet…")
+                : signInMessage(DEMO_ADDRESS, step.nonce)}
+            </pre>
             {step.name === "signing" ? (
               <span className="row g8 small c2" role="status">
                 <Icon name="running" size={14} className="spin" color="var(--azure)" />
@@ -113,7 +155,7 @@ export function ConnectDialog() {
             ) : (
               <span className="row g6 small cm strong" role="status">
                 <Icon name="tick" size={14} stroke={2.4} />
-                Connected · {short(DEMO_ADDRESS)}
+                Connected · {step.address ?? short(DEMO_ADDRESS)}
               </span>
             )}
           </div>

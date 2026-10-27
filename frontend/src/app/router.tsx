@@ -14,6 +14,12 @@ import { ProofLedger } from "../screens/proofs/ProofLedger";
 import { RunWorkspace } from "../screens/run/RunWorkspace";
 import { SignIn } from "../screens/SignIn";
 import { Wallet } from "../screens/Wallet";
+import { DATA_MODE } from "../config/live";
+import { LiveProofDetail } from "../screens/live/LiveProofDetail";
+import { LiveProofLedger } from "../screens/live/LiveProofLedger";
+import { LiveWallet } from "../screens/live/LiveWallet";
+
+const live = DATA_MODE === "live";
 import { paths } from "./paths";
 import { RootLayout } from "./RootLayout";
 
@@ -40,11 +46,11 @@ export const router = createBrowserRouter([
           { path: "runs/new", element: <NewRun /> },
           { path: "runs/:runId", element: <RunWorkspace /> },
           { path: "agents", element: <Agents /> },
-          { path: "proofs", element: <ProofLedger /> },
-          { path: "proofs/:proofId", element: <ProofDetail /> },
+          { path: "proofs", element: live ? <LiveProofLedger /> : <ProofLedger /> },
+          { path: "proofs/:proofId", element: live ? <LiveProofDetail /> : <ProofDetail /> },
           { path: "leaderboard", element: <Leaderboard /> },
           { path: "integrations", element: <Integrations /> },
-          { path: "wallet", element: <Wallet /> },
+          { path: "wallet", element: live ? <LiveWallet /> : <Wallet /> },
           { path: "*", element: <NotFound /> },
         ],
       },

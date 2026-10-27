@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { paths } from "../app/paths";
 import { prefersReducedMotion } from "../lib/motion";
 import { AuthContext } from "./context";
+import type { Address } from "viem";
+import { signOutLive, watchAccount } from "../chain/wallet";
+import { DATA_MODE } from "../config/live";
 import { readSession, writeSession, type Session } from "./session";
 import { SignOutSplash } from "./SignOutSplash";
 
@@ -32,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(() => {
+    if (DATA_MODE === "live") void signOutLive();
     // The splash covers the dashboard; the session ends behind it, then the
     // splash fades away over the landing page.
     setSplash("in");
@@ -52,6 +56,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ),
     );
   }, [navigate]);
+
+  // On live data, a different wallet account ends the session: the signed-in address must be the one that funds.
+  useEffect(() => {
+    if (DATA_MODE !== "live" || !session) return;
+    return watchAccount(session.address as Address, signOut);
+  }, [session, signOut]);
 
   // The dashboard routes show the Connect window themselves while signed out,
   // so opening it is just a navigation.
