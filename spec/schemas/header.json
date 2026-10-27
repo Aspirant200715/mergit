@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mergit.site/spec/v0/header.json",
+  "title": "Receipt header",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": "mergit-receipt/0"
+    },
+    "task_id": {
+      "$ref": "common.json#/$defs/hash"
+    },
+    "plan_id": {
+      "$ref": "common.json#/$defs/hash"
+    },
+    "requester": {
+      "$ref": "common.json#/$defs/address"
+    },
+    "agent_id": {
+      "$ref": "common.json#/$defs/uint"
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1
+    },
+    "phi": {
+      "$ref": "predicate.json"
+    },
+    "phi_hash": {
+      "$ref": "common.json#/$defs/hash"
+    },
+    "budget_usdc_units": {
+      "$ref": "common.json#/$defs/uint"
+    },
+    "runtime_image": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attestation": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "unattested"
+        },
+        "dev_key": {
+          "$ref": "common.json#/$defs/address"
+        }
+      },
+      "required": [
+        "kind",
+        "dev_key"
+      ],
+      "additionalProperties": false
+    },
+    "started_at": {
+      "$ref": "common.json#/$defs/time"
+    }
+  },
+  "required": [
+    "version",
+    "task_id",
+    "plan_id",
+    "requester",
+    "agent_id",
+    "category",
+    "phi",
+    "phi_hash",
+    "budget_usdc_units",
+    "runtime_image",
+    "attestation",
+    "started_at"
+  ],
+  "additionalProperties": false
+}

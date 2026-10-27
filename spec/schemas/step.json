@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mergit.site/spec/v0/step.json",
+  "title": "Receipt step",
+  "type": "object",
+  "properties": {
+    "seq": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "type": {
+      "enum": [
+        "model_call",
+        "tool_call",
+        "command",
+        "artifact_write",
+        "phi_eval"
+      ]
+    },
+    "input_digest": {
+      "$ref": "common.json#/$defs/hash"
+    },
+    "output_digest": {
+      "$ref": "common.json#/$defs/hash"
+    },
+    "exit_status": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "cost": {
+      "$ref": "common.json#/$defs/cost"
+    },
+    "at": {
+      "$ref": "common.json#/$defs/time"
+    }
+  },
+  "required": [
+    "seq",
+    "type",
+    "input_digest",
+    "output_digest",
+    "exit_status",
+    "cost",
+    "at"
+  ],
+  "additionalProperties": false
+}

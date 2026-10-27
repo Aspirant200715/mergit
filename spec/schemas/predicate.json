@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mergit.site/spec/v0/predicate.json",
+  "title": "Predicate Φ, exec/0",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "const": "exec/0"
+    },
+    "command": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "expected_exit": {
+      "type": "integer"
+    },
+    "workdir": {
+      "type": "string",
+      "minLength": 1,
+      "not": {
+        "anyOf": [
+          {
+            "pattern": "^/"
+          },
+          {
+            "pattern": "(^|/)\\.\\.(/|$)"
+          }
+        ]
+      }
+    },
+    "allowed_paths": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "artifact_hashes": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "$ref": "common.json#/$defs/hash"
+      }
+    },
+    "timeout_s": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3600
+    }
+  },
+  "required": [
+    "kind",
+    "command",
+    "expected_exit",
+    "workdir",
+    "allowed_paths",
+    "artifact_hashes",
+    "timeout_s"
+  ],
+  "additionalProperties": false
+}

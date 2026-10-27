@@ -1,0 +1,633 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mergit.site/spec/v0/event.json",
+  "title": "Event envelope between the orchestration service and the web3 services",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "$ref": "common.json#/$defs/uuid"
+    },
+    "type": {
+      "enum": [
+        "plan.approved",
+        "task.dispatch_requested",
+        "receipt.sealed",
+        "plan.closed",
+        "plan.funded",
+        "task.escrowed",
+        "receipt.committed",
+        "verdict.recorded",
+        "task.released",
+        "task.returned",
+        "challenge.opened",
+        "challenge.resolved",
+        "credits.denied",
+        "error"
+      ]
+    },
+    "at": {
+      "$ref": "common.json#/$defs/time"
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "event_id",
+    "type",
+    "at",
+    "payload"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "plan.approved"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/plan_approved"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "task.dispatch_requested"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/task_dispatch_requested"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "receipt.sealed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/receipt_sealed"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "plan.closed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/plan_closed"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "plan.funded"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/plan_funded"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "task.escrowed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/task_escrowed"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "receipt.committed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/receipt_committed"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "verdict.recorded"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/verdict_recorded"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "task.released"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/task_released"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "task.returned"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/task_returned"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "challenge.opened"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/challenge_opened"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "challenge.resolved"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/challenge_resolved"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "credits.denied"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/credits_denied"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "error"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/error"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "plan_approved": {
+      "type": "object",
+      "properties": {
+        "plan_id": {
+          "$ref": "common.json#/$defs/hash"
+        },
+        "plan_uuid": {
+          "$ref": "common.json#/$defs/uuid"
+        },
+        "requester": {
+          "$ref": "common.json#/$defs/address"
+        },
+        "total_budget_usdc_units": {
+          "$ref": "common.json#/$defs/uint"
+        },
+        "funding": {
+          "enum": [
+            "wallet",
+            "credits"
+          ]
+        }
+      },
+      "required": [
+        "plan_id",
+        "plan_uuid",
+        "requester",
+        "total_budget_usdc_units",
+        "funding"
+      ],
+      "additionalProperties": false
+    },
+    "task_dispatch_requested": {
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "$ref": "common.json#/$defs/hash"
+        },
+        "plan_id": {
+          "$ref": "common.json#/$defs/hash"
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "agent_id": {
+          "$ref": "common.json#/$defs/uint"
+        },
+        "amount_usdc_units": {
+          "$ref": "common.json#/$defs/uint"
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phi_hash": {
+          "$ref": "common.json#/$defs/hash"
+        },
+        "deadline_unix": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "task_id",
+        "plan_id",
+        "index",
+        "attempt",
+        "agent_id",
+        "amount_usdc_units",
+        "category",
+        "phi_hash",
+        "deadline_unix"
+      ],
+      "additionalProperties": false
+    },
+    "receipt_sealed": {
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "$ref": "common.json#/$defs/hash"
+        },
+        "agent_id": {
+          "$ref": "common.json#/$defs/uint"
+        },
+        "root": {
+          "$ref": "common.json#/$defs/hash"
+        },
+        "terminal_hash": {
+          "$ref": "common.json#/$defs/hash"
+        },
+        "body_hash": {
+          "$ref": "common.json#/$defs/hash"
+        },
+        "cost_micros": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "signature": {
+          "$ref": "common.json#/$defs/signature"
+        }
+      },
+      "required": [
+        "task_id",
+        "agent_id",
+        "root",
+        "terminal_hash",
+        "body_hash",
+        "cost_micros",
+        "signature"
+      ],
+      "additionalProperties": false
+    },
+    "plan_closed": {
+      "type": "object",
+      "properties": {
+        "plan_id": {
+          "$ref": "common.json#/$defs/hash"
+        }
+      },
+      "required": [
+        "plan_id"
+      ],
+      "additionalProperties": false
+    },
+    "plan_funded": {
+      "type": "object",
+      "properties": {
+        "plan_id": {
+          "$ref": "common.json#/$defs/hash"
+        },
+        "requester": {
+          "$ref": "common.json#/$defs/address"
+        },
+        "amount_usdc_units": {
+          "$ref": "common.json#/$defs/uint"
+        },
+        "tier": {
+          "enum": [
+            "staked",
+            "onboarding"
+          ]
+        },
+        "tx": {
+          "$ref": "common.json#/$defs/tx"
+        }
+      },
+      "required": [
+        "plan_id",
+        "requester",
+        "amount_usdc_units",
+        "tier",
+        "tx"
+      ],
+      "additionalProperties": false
+    },
+    "task_escrowed": {
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "$ref": "common.json#/$defs/hash"
+        },
+        "tx": {
+          "$ref": "common.json#/$defs/tx"
+        }
+      },
+      "required": [
+        "task_id",
+        "tx"
+      ],
+      "additionalProperties": false
+    },
+    "receipt_committed": {
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "$ref": "common.json#/$defs/hash"
+        },
+        "tx": {
+          "$ref": "common.json#/$defs/tx"
+        }
+      },
+      "required": [
+        "task_id",
+        "tx"
+      ],
+      "additionalProperties": false
+    },
+    "verdict_recorded": {
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "$ref": "common.json#/$defs/hash"
+        },
+        "verdict": {
+          "enum": [
+            "pass",
+            "fail",
+            "invalid"
+          ]
+        },
+        "tx": {
+          "$ref": "common.json#/$defs/tx"
+        }
+      },
+      "required": [
+        "task_id",
+        "verdict",
+        "tx"
+      ],
+      "additionalProperties": false
+    },
+    "task_released": {
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "$ref": "common.json#/$defs/hash"
+        },
+        "to": {
+          "$ref": "common.json#/$defs/address"
+        },
+        "amount_usdc_units": {
+          "$ref": "common.json#/$defs/uint"
+        },
+        "tx": {
+          "$ref": "common.json#/$defs/tx"
+        }
+      },
+      "required": [
+        "task_id",
+        "to",
+        "amount_usdc_units",
+        "tx"
+      ],
+      "additionalProperties": false
+    },
+    "task_returned": {
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "$ref": "common.json#/$defs/hash"
+        },
+        "amount_usdc_units": {
+          "$ref": "common.json#/$defs/uint"
+        },
+        "reason": {
+          "enum": [
+            "fail",
+            "invalid",
+            "deadline",
+            "challenge"
+          ]
+        },
+        "tx": {
+          "$ref": "common.json#/$defs/tx"
+        }
+      },
+      "required": [
+        "task_id",
+        "amount_usdc_units",
+        "reason",
+        "tx"
+      ],
+      "additionalProperties": false
+    },
+    "challenge_opened": {
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "$ref": "common.json#/$defs/hash"
+        },
+        "challenge_id": {
+          "$ref": "common.json#/$defs/uint"
+        },
+        "challenger": {
+          "$ref": "common.json#/$defs/address"
+        },
+        "bond_usdc_units": {
+          "$ref": "common.json#/$defs/uint"
+        },
+        "tx": {
+          "$ref": "common.json#/$defs/tx"
+        }
+      },
+      "required": [
+        "task_id",
+        "challenge_id",
+        "challenger",
+        "bond_usdc_units",
+        "tx"
+      ],
+      "additionalProperties": false
+    },
+    "challenge_resolved": {
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "$ref": "common.json#/$defs/hash"
+        },
+        "challenge_id": {
+          "$ref": "common.json#/$defs/uint"
+        },
+        "upheld": {
+          "type": "boolean"
+        },
+        "tx": {
+          "$ref": "common.json#/$defs/tx"
+        }
+      },
+      "required": [
+        "task_id",
+        "challenge_id",
+        "upheld",
+        "tx"
+      ],
+      "additionalProperties": false
+    },
+    "credits_denied": {
+      "type": "object",
+      "properties": {
+        "plan_id": {
+          "$ref": "common.json#/$defs/hash"
+        },
+        "reason": {
+          "enum": [
+            "no_credits",
+            "rate_limited",
+            "over_value_cap"
+          ]
+        }
+      },
+      "required": [
+        "plan_id",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "ref_event_id": {
+          "$ref": "common.json#/$defs/uuid"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref_event_id",
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mergit.site/spec/v0/sealed-receipt.json",
+  "title": "Sealed receipt",
+  "type": "object",
+  "properties": {
+    "header": {
+      "$ref": "header.json"
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "$ref": "step.json"
+      },
+      "minItems": 1
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "meter": {
+      "$ref": "common.json#/$defs/meter"
+    },
+    "ended_at": {
+      "$ref": "common.json#/$defs/time"
+    },
+    "root": {
+      "$ref": "common.json#/$defs/hash"
+    },
+    "terminal_hash": {
+      "$ref": "common.json#/$defs/hash"
+    },
+    "body_hash": {
+      "$ref": "common.json#/$defs/hash"
+    },
+    "signature": {
+      "$ref": "common.json#/$defs/signature"
+    }
+  },
+  "required": [
+    "header",
+    "steps",
+    "evidence",
+    "meter",
+    "ended_at",
+    "root",
+    "terminal_hash",
+    "body_hash",
+    "signature"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mergit.site/spec/v0/bundle.json",
+  "title": "Receipt bundle (what the store accepts)",
+  "type": "object",
+  "properties": {
+    "receipt": {
+      "$ref": "sealed-receipt.json"
+    },
+    "blobs": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^0x[0-9a-f]{64}$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "contentEncoding": "base64"
+      }
+    }
+  },
+  "required": [
+    "receipt",
+    "blobs"
+  ],
+  "additionalProperties": false
+}
