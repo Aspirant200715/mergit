@@ -1,0 +1,14 @@
+[build-system]
+requires = ["maturin>=1.7,<2"]
+build-backend = "maturin"
+
+[project]
+name = "mergit-receipt"
+version = "0.1.0"
+description = "Python binding for the Mergit receipt builder and verifier (Rust)"
+requires-python = ">=3.12"
+license = "GPL-3.0-only"
+
+[tool.maturin]
+module-name = "mergit_receipt"
+features = ["pyo3/extension-module"]
