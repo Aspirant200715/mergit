@@ -1,0 +1,44 @@
+"""Agent configuration for the worker: chain identity from `agents.json` joined with model and prompt
+from `agents.toml` by agent `name`, and the signing key from the environment."""
+
+from __future__ import annotations
+
+import json
+import re
+import tomllib
+from collections.abc import Mapping
+from pathlib import Path
+from typing import Any
+
+from .config import ConfigError, agent_signing_key
+from .harness import AgentSpec
+
+_ADDRESS = re.compile(r"^0x[0-9a-fA-F]{40}$")
+
+
+def load_agent_spec(
+    agent_id: str, agents_file: Path, agents_config: Path, environ: Mapping[str, str] | None = None
+) -> AgentSpec:
+    try:
+        registry: list[dict[str, Any]] = json.loads(agents_file.read_text())["agents"]
+        models: dict[str, Any] = tomllib.loads(agents_config.read_text())["agents"]
+    except (OSError, KeyError, ValueError) as exc:
+        raise ConfigError(f"cannot read agent configuration: {exc}") from exc
+
+    entry = next((a for a in registry if str(a.get("agent_id")) == agent_id), None)
+    if entry is None:
+        raise ConfigError(f"agent {agent_id!r} is not in {agents_file}")
+    runtime_key = str(entry.get("runtime_key", ""))
+    if not _ADDRESS.match(runtime_key):
+        raise ConfigError(f"agent {agent_id!r} has no valid runtime_key address")
+    cfg: dict[str, Any] | None = models.get(str(entry.get("name")))
+    if not cfg or not cfg.get("model") or not cfg.get("system_prompt"):
+        raise ConfigError(f"agent {entry.get('name')!r} needs a model and system_prompt in {agents_config}")
+
+    return AgentSpec(
+        agent_id=agent_id,
+        model=str(cfg["model"]),
+        system_prompt=str(cfg["system_prompt"]),
+        runtime_key_address=runtime_key,
+        signing_key=agent_signing_key(agent_id, environ).get_secret_value(),
+    )
