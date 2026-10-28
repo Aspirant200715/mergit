@@ -27,12 +27,26 @@ class Settings(BaseSettings):
     """The planner's model (HLD D18 is open, so this is a deployment choice, not a code default)."""
     prices_file: str = "prices.toml"
     planner_max_tasks: int = Field(default=8, ge=1, le=32)
+    plans_per_hour: int = Field(default=10, ge=1)
+    """Planner calls per requester per hour. Each one spends on the model before anything is funded."""
+    goal_max_chars: int = Field(default=8000, ge=1)
+    repo_hosts: Annotated[list[str], NoDecode] = ["github.com"]
+    """Hosts a plan's repository may live on. The worker clones it, so anything else is refused here."""
+    max_attempts: int = Field(default=3, ge=1)
+    """Agents a requester may list per task: the pick plus the retries (plan O6: at most 3 attempts)."""
+
+    events_token: SecretStr
+    """Shared secret sent to the gateway as ``Authorization: Bearer`` (spec/events-v0.md)."""
+    event_retry_window_s: float = Field(default=600, gt=0)
+    event_poll_s: float = Field(default=1.0, gt=0)
+    event_timeout_s: float = Field(default=10.0, gt=0)
+
     chain_id: int = BASE_SEPOLIA_CHAIN_ID
     nonce_ttl_s: int = Field(default=600, gt=0)
     session_ttl_s: int = Field(default=12 * 3600, gt=0)
     db_pool_max: int = Field(default=10, gt=0)
 
-    @field_validator("cors_origins", mode="before")
+    @field_validator("cors_origins", "repo_hosts", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:
         if isinstance(value, str):

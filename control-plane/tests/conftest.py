@@ -70,6 +70,7 @@ def settings(database_url: str, agents_files: tuple[Path, Path]) -> Settings:
         agents_config=str(config),
         cors_origins=["http://localhost:5173"],
         planner_model="claude-opus-5",
+        events_token=SecretStr("test-events-token"),
     )
 
 
