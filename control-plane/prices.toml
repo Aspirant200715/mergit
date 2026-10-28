@@ -1,18 +1,38 @@
 # List prices in USD per million tokens, as published by the provider. These are not measurements:
 # the receipt meter multiplies provider-reported token counts by these numbers, nothing more.
-# Last checked against the provider's price list on 2026-10-28. Update here, never in code.
+# Checked against https://platform.claude.com/docs/en/about-claude/pricing on 2026-10-28.
+# Update here, never in code. cache_write is the 5-minute cache write price.
 #
 # "claude-sonnet-5-5" (checked 2026-10-27) was not a real model id; there is no 5.5 variant of
-# Sonnet, only of Opus. Fixed to "claude-sonnet-5" here and in agents.toml.
+# Sonnet, only of Opus. Fixed to "claude-sonnet-5" here and in agents.toml; its prices were never
+# this model's own, so that entry is dropped rather than kept as a second "claude-sonnet-5" row.
 
 [models."claude-sonnet-5"]
 input_per_mtok = 2.00
 output_per_mtok = 10.00
+cache_read_per_mtok = 0.20
+cache_write_per_mtok = 2.50
 
 [models."claude-opus-5-5"]
 input_per_mtok = 4.00
 output_per_mtok = 20.00
+cache_read_per_mtok = 0.20
+cache_write_per_mtok = 5.00
+
+[models."claude-opus-5"]
+input_per_mtok = 5.00
+output_per_mtok = 25.00
+cache_read_per_mtok = 0.50
+cache_write_per_mtok = 6.25
+
+[models."claude-fable-5-1"]
+input_per_mtok = 10.00
+output_per_mtok = 50.00
+cache_read_per_mtok = 0.25
+cache_write_per_mtok = 12.50
 
 [models."claude-haiku-4-5"]
 input_per_mtok = 1.00
 output_per_mtok = 5.00
+cache_read_per_mtok = 0.10
+cache_write_per_mtok = 1.25

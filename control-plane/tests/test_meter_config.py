@@ -140,3 +140,24 @@ def test_config_rejects_bad_values(monkeypatch: pytest.MonkeyPatch, name: str, v
         monkeypatch.setenv(name, value)
     with pytest.raises(ConfigError):
         load_config()
+
+
+def test_cached_tokens_are_priced_at_cache_rates():
+    table = PriceTable.load(ROOT / "prices.toml")
+    cost = table.model_call_cost(
+        "claude-opus-5", 0, 0, 0, cache_read_tokens=1_000_000, cache_write_tokens=1_000_000
+    )
+    assert cost.usd_micros == 6_750_000  # $0.50 read + $6.25 write per Mtok
+
+
+def test_cached_tokens_without_a_cache_price_are_an_error(tmp_path: Path):
+    p = tmp_path / "p.toml"
+    p.write_text('[models."m"]\ninput_per_mtok = 1\noutput_per_mtok = 1\n')
+    with pytest.raises(ConfigError, match="cache_read_per_mtok"):
+        PriceTable.load(p).model_call_cost("m", 1, 1, 0, cache_read_tokens=5)
+    assert PriceTable.load(p).model_call_cost("m", 1, 1, 0).usd_micros == 2  # $1/Mtok = 1 micro-USD/token
+
+
+def test_every_priced_model_has_cache_prices():
+    for line in (ROOT / "prices.toml").read_text().split("[models.")[1:]:
+        assert "cache_read_per_mtok" in line and "cache_write_per_mtok" in line, line.splitlines()[0]
