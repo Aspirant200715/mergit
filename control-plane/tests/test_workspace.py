@@ -96,6 +96,16 @@ def test_changed_paths_includes_gitignored_files(sandbox: ProcessSandbox):
     assert "payments/refund.py" in sandbox.workspace.changed_paths()
 
 
+def test_diff_from_head_includes_gitignored_files(sandbox: ProcessSandbox):
+    """The same file `changed_paths` now counts as changed must not then silently drop out of the
+    stored patch (used for the PR and passed on to a dependent task's checkout)."""
+    sandbox.workspace.write_file(".gitignore", b"payments/\n")
+    sandbox.workspace.write_file("payments/refund.py", b"changed\n")
+    diff = sandbox.workspace.diff_from_head()
+    assert "payments/refund.py" in diff
+    assert "changed" in diff
+
+
 def test_planted_git_file_is_refused_not_silently_worked_around(sandbox: ProcessSandbox, tmp_path: Path):
     """The container could write a `.git` that points at a hostile git dir with a code-running config.
     Refusing the whole operation is simpler to get right than trusting that every git invocation that

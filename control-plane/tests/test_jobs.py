@@ -39,18 +39,26 @@ def db(dsn: str) -> Iterator[psycopg.Connection[dict[str, Any]]]:
         yield conn  # type: ignore[misc]
 
 
-def seed(db: psycopg.Connection[dict[str, Any]], n: int = 1, agent: str = "1") -> list[str]:
+def seed(
+    db: psycopg.Connection[dict[str, Any]],
+    n: int = 1,
+    agent: str = "1",
+    depends_on: dict[int, list[int]] | None = None,
+) -> list[str]:
     plan_uuid = str(uuid.uuid4())
     plan_id = mergit_receipt.plan_id(plan_uuid)
     db.execute(
         "INSERT INTO plans VALUES (%s, %s, %s, 'https://x/y.git', 'main', 'test-repair')",
         (plan_uuid, plan_id, REQUESTER),
     )
+    depends_on = depends_on or {}
     ids: list[str] = []
     for i in range(n):
         task_id = mergit_receipt.task_id(plan_id, i, 1)
         db.execute(
-            "INSERT INTO tasks VALUES (%s, %s, 't', 'do it', %s, 1000000)", (plan_uuid, i, json.dumps(phi()))
+            'INSERT INTO tasks (plan_uuid, "index", title, instructions, phi, budget_usdc_units, depends_on)'
+            " VALUES (%s, %s, 't', 'do it', %s, 1000000, %s)",
+            (plan_uuid, i, json.dumps(phi()), depends_on.get(i, [])),
         )
         db.execute(
             'INSERT INTO jobs (task_id, plan_uuid, "index", attempt, agent_id) VALUES (%s,%s,%s,1,%s)',
@@ -70,6 +78,45 @@ def test_claim_returns_the_joined_job_and_marks_it_running(dsn: str, db: Any):
     assert job.budget_usdc_units == 1_000_000
     row = db.execute("SELECT status, claimed_by FROM jobs").fetchone()
     assert (row["status"], row["claimed_by"]) == ("running", "w1")
+    assert job.depends_on == ()
+    assert job.dependency_patches == ()
+
+
+def test_claim_includes_the_dependencys_stored_patch(dsn: str, db: Any):
+    """A task that depends on another must start from that dependency's actual passing change (plan
+    task O4 dispatches it only once that dependency has passed), not the plan's bare base ref."""
+    ids = seed(db, n=2, depends_on={1: [0]})
+    plan_uuid = db.execute("SELECT plan_uuid FROM jobs WHERE task_id = %s", (ids[0],)).fetchone()["plan_uuid"]
+    db.execute(
+        "UPDATE jobs SET status = 'done', phi_holds = true, patch = %s WHERE task_id = %s",
+        ("diff --git a/x b/x\n@@ -0,0 +1 @@\n+x\n", ids[0]),
+    )
+    job = PgJobStore.connect(dsn, "w1").claim()
+    assert job is not None
+    assert job.task_id == ids[1]
+    assert job.depends_on == (0,)
+    assert job.dependency_patches == ("diff --git a/x b/x\n@@ -0,0 +1 @@\n+x\n",)
+    assert plan_uuid is not None  # sanity: the fixture really did seed one plan for both tasks
+
+
+def test_claim_reports_a_dependency_with_no_change_as_an_empty_patch(dsn: str, db: Any):
+    ids = seed(db, n=2, depends_on={1: [0]})
+    db.execute("UPDATE jobs SET status = 'done', phi_holds = true WHERE task_id = %s", (ids[0],))
+    job = PgJobStore.connect(dsn, "w1").claim()
+    assert job is not None
+    assert job.dependency_patches == ("",)
+
+
+def test_claim_ignores_a_dependency_that_has_not_passed_yet(dsn: str, db: Any):
+    """Plan task O4's own dispatch rule already stops this from happening in practice, but the worker
+    does not trust that: a dependency that failed, or has not finished, contributes no patch."""
+    ids = seed(db, n=2, depends_on={1: [0]})
+    db.execute(
+        "UPDATE jobs SET status = 'done', phi_holds = false, patch = NULL WHERE task_id = %s", (ids[0],)
+    )
+    job = PgJobStore.connect(dsn, "w1").claim()
+    assert job is not None
+    assert job.dependency_patches == ("",)
 
 
 def test_empty_queue(dsn: str, db: Any):

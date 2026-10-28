@@ -86,9 +86,14 @@ def parse_github_repo(repo_url: str, hosts: Sequence[str]) -> tuple[str, str]:
 
 def clean_line(text: str, limit: int = _TITLE_MAX) -> str:
     """One line of plain text for a title or list item: whitespace collapsed, markup characters
-    escaped, length capped. Titles come from the planner and the requester, so they are not trusted."""
+    escaped, @mentions and links defanged, length capped. Titles come from the planner and the
+    requester, so they are not trusted."""
     line = " ".join(text.split())
     line = re.sub(r"([\\`*_{}\[\]<>#|])", r"\\\1", line)
+    # A zero-width space breaks GitHub's @user/@org/team mention parsing (so the goal or a task title
+    # cannot ping someone) and its autolinking of a bare URL, without changing what the line looks like.
+    line = re.sub(r"@(?=\w)", "@​", line)
+    line = line.replace("://", ":/​/")
     return line if len(line) <= limit else line[: limit - 1] + "…"
 
 
@@ -142,6 +147,8 @@ class GitHubPrOpener:
         ws = Workspace.clone(git_url, spec.base_ref, self._cfg.workspace_root, self._cfg.git)
         try:
             for task in sorted(spec.tasks, key=lambda t: t.index):
+                if not task.patch:  # a task can pass without changing any tracked file; nothing to apply
+                    continue
                 try:
                     ws.apply_patch(task.patch)
                 except WorkspaceError as exc:

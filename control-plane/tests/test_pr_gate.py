@@ -39,7 +39,12 @@ def test_done_state_alone_is_not_enough():
 
 def test_passed_task_without_stored_patch_blocks():
     assert any("no stored change" in b for b in blockers(PLAN, [TaskChange(0, "fix", "0xaa", None)]))
-    assert any("no stored change" in b for b in blockers(PLAN, [TaskChange(0, "fix", "0xaa", "")]))
+
+
+def test_passed_task_with_an_empty_patch_does_not_block():
+    """An empty patch is a real outcome (the task passed without changing a tracked file), not a
+    failed capture, and must not block the PR forever."""
+    assert blockers(PLAN, [TaskChange(0, "fix", "0xaa", "")]) == []
 
 
 def test_plan_with_no_tasks_blocks():

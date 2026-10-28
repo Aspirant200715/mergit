@@ -19,6 +19,7 @@ CREATE TABLE tasks (
     instructions text NOT NULL,
     phi jsonb NOT NULL,
     budget_usdc_units bigint NOT NULL,
+    depends_on integer[] NOT NULL DEFAULT '{}',  -- O3
     PRIMARY KEY (plan_uuid, "index")
 );
 

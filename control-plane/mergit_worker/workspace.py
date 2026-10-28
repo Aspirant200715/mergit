@@ -198,11 +198,17 @@ class Workspace:
         return sorted(paths)
 
     def diff_from_head(self) -> str:
-        """Unified diff of tracked and untracked changes, for the PR gate to show the requester."""
+        """Unified diff of tracked and untracked changes, for the PR gate to show the requester.
+
+        `--force` on the intent-to-add, or a new file a `.gitignore` covers would silently drop out of
+        this diff, even though `changed_paths` (and so the Φ check) already counts it as changed: the
+        same thing a `.gitignore` must not be able to hide from `allowed_paths` must not then go missing
+        from the patch that gets committed and dispatched to a dependent task.
+        """
         self._refuse_nested_git()
         env = _git_env(())
         base = ["--git-dir", str(self._gitdir), "--work-tree", str(self.work)]
-        _git([*base, "add", "-N", "--", "."], env, self._git_timeout_s, cwd=self.work)
+        _git([*base, "add", "-N", "--force", "--", "."], env, self._git_timeout_s, cwd=self.work)
         raw = _git_raw(
             [*base, "diff", "--no-ext-diff", "--binary", "--ignore-submodules=all", "HEAD"],
             env,

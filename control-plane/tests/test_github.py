@@ -110,6 +110,23 @@ def test_opens_a_pr_from_the_combined_changes(remotes: Path, tmp_path: Path):
 
 
 @respx.mock
+def test_a_task_with_an_empty_patch_is_skipped_not_fatal(remotes: Path, tmp_path: Path):
+    """A task can pass Φ without changing any tracked file; `git apply` itself refuses an empty patch,
+    so that task must be skipped rather than breaking the whole combined change."""
+    respx.post(f"{API}/repos/acme/widgets/pulls").mock(return_value=created())
+    result = opener(remotes, tmp_path).open(
+        spec(
+            tasks=[
+                PrTask(0, "0x" + "a" * 64, "fix refund", FIX_PATCH),
+                PrTask(1, "0x" + "b" * 64, "noop", ""),
+            ]
+        )
+    )
+    bare = remotes / "acme" / "widgets.git"
+    assert "return amount - fee" in git(bare, "show", f"{result.commit_sha}:payments/refund.py")
+
+
+@respx.mock
 def test_pr_body_links_every_receipt(remotes: Path, tmp_path: Path):
     route = respx.post(f"{API}/repos/acme/widgets/pulls").mock(return_value=created())
     s = spec()
@@ -131,6 +148,15 @@ def test_hostile_titles_cannot_inject_markup():
     assert "\n" not in out
     assert "](" not in out.replace("\\]", "").replace("\\[", "")
     assert "<script>" not in out
+
+
+def test_mentions_and_links_are_defanged():
+    out = clean_line("ping @someone and @acme/security-team, see http://evil.example/login")
+    assert "@someone" not in out  # a zero-width space breaks the mention, text still reads the same
+    assert "@​someone" in out
+    assert "@​acme/security-team" in out
+    assert "http://evil.example/login" not in out
+    assert "http:/​/evil.example/login" in out
 
 
 def test_long_title_is_capped():

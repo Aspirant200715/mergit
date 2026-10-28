@@ -86,6 +86,114 @@ def test_empty_queue_returns_false(cfg: WorkerConfig, tmp_path: Path):
     assert make_worker(cfg, FakeStore([]), ScriptedLLM([]), tmp_path, []).run_once() is False
 
 
+def _unused_sandbox(_job: Job) -> ProcessSandbox:
+    raise AssertionError("no job should have been claimed")
+
+
+class _RaisingStore:
+    def claim(self) -> Job | None:
+        raise RuntimeError("the database is unreachable")
+
+    def report(self, outcome: RunOutcome) -> None:  # pragma: no cover - never reached
+        raise AssertionError
+
+    def fail(self, task_id: str, message: str) -> None:  # pragma: no cover - never reached
+        raise AssertionError
+
+
+class _RaisingPr:
+    def run_once(self) -> bool:
+        raise RuntimeError("GitHub is unreachable")
+
+
+def test_a_failed_claim_does_not_crash_the_worker(cfg: WorkerConfig):
+    """A dropped database connection a job store could not recover from must not take the whole worker
+    process down with it; the poll loop backs off and tries again."""
+    deps = WorkerDeps(
+        store=_RaisingStore(),
+        llm=ScriptedLLM([]),
+        prices=make_prices(),
+        publisher=RecordingPublisher(sealed=[]),
+        make_sandbox=_unused_sandbox,
+        harness=make_harness_config(),
+    )
+    assert Worker(cfg, deps).run_once() is False
+
+
+def test_a_crashing_pr_queue_does_not_stop_job_processing(cfg: WorkerConfig):
+    """A crash opening a pull request must not stop this process from still claiming ordinary jobs on
+    its next turn."""
+    deps = WorkerDeps(
+        store=FakeStore([]),
+        llm=ScriptedLLM([]),
+        prices=make_prices(),
+        publisher=RecordingPublisher(sealed=[]),
+        make_sandbox=_unused_sandbox,
+        harness=make_harness_config(),
+        pr=_RaisingPr(),
+    )
+    assert Worker(cfg, deps).run_once() is False
+
+
+class _ObservingLLM(ScriptedLLM):
+    """A `ScriptedLLM` that also remembers every `messages` list it was called with."""
+
+    def __init__(self, turns: list[Any]) -> None:
+        super().__init__(turns)
+        self.seen_messages: list[list[dict[str, Any]]] = []
+
+    def complete(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+        model: str,
+        *,
+        system: str | None = None,
+        max_tokens: int = 8192,
+    ) -> Any:
+        self.seen_messages.append(list(messages))  # a snapshot: `messages` itself grows in place
+        return super().complete(messages, tools, model, system=system, max_tokens=max_tokens)
+
+
+def test_dependency_patches_are_applied_before_the_agent_runs(
+    cfg: WorkerConfig, repo_url: str, tmp_path: Path
+):
+    """A task that depends on another must see that dependency's actual change, not the plan's bare
+    base ref, before its own agent loop starts."""
+    patch = (
+        "diff --git a/payments/dep.py b/payments/dep.py\n"
+        "new file mode 100644\n"
+        "index 0000000..9daeafb\n"
+        "--- /dev/null\n"
+        "+++ b/payments/dep.py\n"
+        "@@ -0,0 +1 @@\n"
+        "+DEP = 1\n"
+    )
+    job = make_job(repo_url, depends_on=(0,), dependency_patches=(patch,))
+    store, made = FakeStore([job]), []
+    llm = _ObservingLLM([turn(("read_file", {"path": "payments/dep.py"})), turn(("finish", {}))])
+    worker = make_worker(cfg, store, llm, tmp_path, made)
+    assert worker.run_once() is True
+    assert store.failures == []
+    # The second call's messages carry the first call's tool result; it only contains the dependency's
+    # file if the patch was applied to the checkout before the agent's first turn ran.
+    tool_result = llm.seen_messages[1][-1]["content"][0]
+    assert tool_result["is_error"] is False
+    assert tool_result["content"] == "DEP = 1\n"
+
+
+def test_a_dependency_patch_that_does_not_apply_fails_the_job(
+    cfg: WorkerConfig, repo_url: str, tmp_path: Path
+):
+    job = make_job(repo_url, depends_on=(0,), dependency_patches=("not a valid patch at all\n",))
+    store, made = FakeStore([job]), []
+    worker = make_worker(cfg, store, ScriptedLLM([]), tmp_path, made)
+    assert worker.run_once() is True
+    assert [t for t, _ in store.failures] == [job.task_id]
+    assert "dependency task 0" in store.failures[0][1]
+    assert store.reports == []
+
+
 def test_job_is_run_reported_and_sandbox_destroyed(cfg: WorkerConfig, repo_url: str, tmp_path: Path):
     store, made = FakeStore([make_job(repo_url)]), []
     worker = make_worker(cfg, store, ScriptedLLM([turn(FIX), turn(("finish", {}))]), tmp_path, made)

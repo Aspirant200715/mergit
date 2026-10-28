@@ -8,6 +8,7 @@ CREATE TABLE pr_requests (
     status        text NOT NULL DEFAULT 'queued'
                   CHECK (status IN ('queued', 'running', 'done', 'error')),
     claimed_by    text,
+    claimed_at    timestamptz,
     branch        text,
     commit_sha    text,
     pr_number     integer,

@@ -45,7 +45,9 @@ def blockers(plan: PlanInfo, tasks: Sequence[TaskChange]) -> list[str]:
     for task in tasks:
         if task.task_id is None:
             problems.append(f"task {task.index} has no passing attempt")
-        elif not task.patch:
+        elif task.patch is None:
+            # An empty string is a real, valid outcome (the task passed without changing any tracked
+            # file) and must not block the PR forever; only a capture that never happened does.
             problems.append(f"task {task.index} passed but has no stored change")
     return problems
 

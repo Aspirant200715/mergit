@@ -80,8 +80,10 @@ the worker container, because sandboxes are started through the host Docker sock
 ### Database contract
 
 `jobs.py` reads `jobs`, `tasks` and `plans` and writes `status`, `claimed_by`, `claimed_at`, `phi_holds`,
-`receipt_root`, `notes`, `finished_at` on `jobs`. The exact columns are in `tests/jobs_schema.sql`. O4 owns the
-real migration and should either match those names or change `jobs.py` and that file in the same pull request.
+`receipt_root`, `notes`, `finished_at` on `jobs`. It also reads `tasks.depends_on` (to apply a dependency's
+own stored patch before a dependent task runs) and `jobs.patch`. The exact columns are in
+`tests/jobs_schema.sql`. O4 owns the real migration and should either match those names or change `jobs.py`
+and that file in the same pull request.
 
 A crashed or killed worker never resumes a job under its old `task_id`: `fail_own_running` (this worker's own
 jobs, checked at start-up) and `reclaim_stale` (anyone's, past `JOB_LEASE_S`) both mark the row `error` instead
@@ -103,14 +105,33 @@ opens the pull request.
   (`migrations/0009_pr_requests.sql`) and returns `202`; asking again returns the same request, and a request
   that ended in an error is queued again. Only the plan's requester may call it (`403` otherwise), and it is
   refused with `409` and the list of blockers unless the plan is `done` **and** every task has a passing
-  attempt with a stored patch. The plan state alone is not trusted.
+  attempt with a stored patch (an empty patch, a task that passed without changing any tracked file, is not a
+  blocker; only a capture that never happened is). The plan state alone is not trusted.
 - `GET /v0/plans/{plan_uuid}/pr` returns status, branch, commit SHA, PR number and URL.
 
 The API holds no GitHub token. The worker, the only process with `GITHUB_TOKEN`, claims the request,
 re-checks the gate, applies each task's patch in order onto a fresh checkout of the plan's base ref, makes one
 commit, force-pushes it to `mergit/<plan_uuid>` (a branch Mergit owns) and opens the PR. The PR body links each
 task's receipt at `{APP_BASE_URL}/app/proofs/<task_id>` and says the receipts are unattested. Branch, commit
-SHA and PR number are recorded on the request.
+SHA and PR number are recorded on the request. A task with an empty patch is skipped when applying (`git apply`
+itself refuses an empty patch), not fatal to the others.
+
+A task that depends on another is dispatched (O4) only once that dependency has passed, and the worker applies
+the dependency's own stored patch onto the fresh checkout before that task's agent loop starts (`depends_on`
+and `dependency_patches` on the claimed `Job`, in `jobs.py`), in the same index order the PR step combines
+patches in. A dependency with no tracked change (`""`) has nothing to apply and is skipped; a patch that does
+not apply fails that job outright, naming the dependency, rather than running against the wrong tree.
+
+Titles and the goal go through `clean_line` before reaching the PR body: markup is escaped, and `@mentions`
+and bare links are defanged with a zero-width space so a planner- or requester-supplied string cannot ping
+someone or get autolinked.
+
+Like `PgJobStore`, `PgPrStore` never silently resumes a request under a different claim after a crash or a
+stale lease (`requeue_own_running`, `reclaim_stale`, both checked at start-up) and reconnects once on a dropped
+connection. Unlike a job, though, a stuck PR request is simply requeued rather than marked `error`: opening a
+PR is idempotent (GitHub's "already exists" response, or just reapplying the same patches), so there is no
+double-pay or duplicate-bundle risk in trying again. A crash while claiming either queue, or while running the
+PR queue itself, no longer stops the job queue from being served on the worker's next turn.
 
 The token is used in the `Authorization` header of API calls and in the environment of the single `git push`
 process, as an HTTP header. It is never in a sandbox, a prompt, a URL, argv or a file. A worker started without
@@ -119,6 +140,13 @@ process, as an HTTP header. It is never in a sandbox, a prompt, a URL, argv or a
 
 `mergit_cp.routes_pr.build_router(get_requester, get_store)` takes the session and store dependencies, so the
 app from O1 mounts it with its own SIWE session.
+
+**Known limitations, not fixed here:** the PR's base is the base ref's tip at open time, not the commit the
+tasks actually ran against, so a tag or SHA `ref` cannot become a GitHub PR base and a ref that moved between
+dispatch and open can make a patch fail to apply; fixing it means pinning a base SHA somewhere in O3/O4's
+schema, which is outside this pass. `open-pr` also does not bind to the specific diff the requester saw in
+`GET .../diff` (no `diff_sha256` round trip), so a retry mid-review could approve a slightly different diff
+than the one read; the frontend side of that doesn't exist yet either.
 
 ## Develop
 

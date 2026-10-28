@@ -45,6 +45,12 @@ class Job:
     instructions: str
     phi: dict[str, Any]
     budget_usdc_units: int  # 6 decimals, the same scale as a step's usd_micros
+    depends_on: tuple[int, ...] = ()
+    dependency_patches: tuple[str, ...] = ()
+    """Parallel to `depends_on`: each dependency's stored passing patch, or `""` when it made no change.
+    Applied onto the fresh checkout before the agent loop starts, so a dependent task actually sees the
+    code it depends on, in the same index order the pull-request gate (plan task O9) later combines
+    patches in."""
 
 
 @dataclass(slots=True)

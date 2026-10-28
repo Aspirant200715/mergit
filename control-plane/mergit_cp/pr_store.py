@@ -6,13 +6,19 @@ It reads `plans`, `tasks` and `jobs` (plan tasks O3, O4, O5; columns in `tests/j
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, TypeVar, cast
 
 import psycopg
 from psycopg.rows import dict_row
 
 from .pr_gate import PlanInfo, TaskChange
+
+log = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
 
 _PLAN = """
 SELECT plan_uuid::text AS plan_uuid, requester, state, goal, repo_url, ref FROM plans
@@ -56,7 +62,7 @@ WITH next AS (
     SELECT plan_uuid FROM pr_requests WHERE status = 'queued'
     ORDER BY requested_at FOR UPDATE SKIP LOCKED LIMIT 1
 )
-UPDATE pr_requests SET status = 'running', claimed_by = %(worker)s
+UPDATE pr_requests SET status = 'running', claimed_by = %(worker)s, claimed_at = now()
 FROM next WHERE pr_requests.plan_uuid = next.plan_uuid
 RETURNING pr_requests.plan_uuid::text AS plan_uuid
 """
@@ -73,8 +79,13 @@ WHERE plan_uuid = %(plan)s AND status = 'running' AND claimed_by = %(worker)s
 """
 
 _REQUEUE_OWN = """
-UPDATE pr_requests SET status = 'queued', claimed_by = NULL
+UPDATE pr_requests SET status = 'queued', claimed_by = NULL, claimed_at = NULL
 WHERE status = 'running' AND claimed_by = %(worker)s
+"""
+
+_RECLAIM_STALE = """
+UPDATE pr_requests SET status = 'queued', claimed_by = NULL, claimed_at = NULL
+WHERE status = 'running' AND claimed_at < now() - make_interval(secs => %(lease_s)s)
 """
 
 
@@ -91,17 +102,41 @@ class PrRequest:
 
 
 class PgPrStore:
-    def __init__(self, conn: psycopg.Connection[dict[str, Any]], worker_id: str = "api") -> None:
+    """Opening a pull request is idempotent (a retry resolves through GitHub's "already exists"
+    response, or simply reapplies the same patches), unlike sealing a receipt. So, unlike
+    `PgJobStore`, a crashed or stale claim here is simply requeued, not marked `error`: there is no
+    double-pay or duplicate-bundle risk in trying again.
+
+    Every public method goes through `_retrying`, which reopens the connection once and retries on a
+    dropped connection: a long-lived caller (the worker loop) must not die from losing it, and nor
+    should a single bad request from the API.
+    """
+
+    def __init__(
+        self, database_url: str, conn: psycopg.Connection[dict[str, Any]], worker_id: str = "api"
+    ) -> None:
+        self._database_url = database_url
         self._conn = conn
         self._worker = worker_id
 
     @classmethod
     def connect(cls, database_url: str, worker_id: str = "api") -> PgPrStore:
-        conn = cast(
+        return cls(database_url, cls._open(database_url), worker_id)
+
+    @staticmethod
+    def _open(database_url: str) -> psycopg.Connection[dict[str, Any]]:
+        return cast(
             "psycopg.Connection[dict[str, Any]]",
             psycopg.connect(database_url, autocommit=True, row_factory=dict_row),  # pyright: ignore[reportArgumentType]
         )
-        return cls(conn, worker_id)
+
+    def _retrying(self, fn: Callable[[], _T]) -> _T:
+        try:
+            return fn()
+        except (psycopg.OperationalError, psycopg.InterfaceError):
+            log.warning("database connection for %s was lost; reconnecting", self._worker)
+            self._conn = self._open(self._database_url)
+            return fn()
 
     def close(self) -> None:
         self._conn.close()
@@ -109,23 +144,34 @@ class PgPrStore:
     # -- reads, API and worker -------------------------------------------------------------------
 
     def plan(self, plan_uuid: str) -> PlanInfo | None:
-        row = self._conn.execute(_PLAN, {"plan": plan_uuid}).fetchone()
-        return None if row is None else PlanInfo(**row)
+        def run() -> PlanInfo | None:
+            row = self._conn.execute(_PLAN, {"plan": plan_uuid}).fetchone()
+            return None if row is None else PlanInfo(**row)
+
+        return self._retrying(run)
 
     def changes(self, plan_uuid: str) -> list[TaskChange]:
-        rows = self._conn.execute(_CHANGES, {"plan": plan_uuid}).fetchall()
-        return [TaskChange(r["index"], r["title"], r["task_id"], r["patch"]) for r in rows]
+        def run() -> list[TaskChange]:
+            rows = self._conn.execute(_CHANGES, {"plan": plan_uuid}).fetchall()
+            return [TaskChange(r["index"], r["title"], r["task_id"], r["patch"]) for r in rows]
+
+        return self._retrying(run)
 
     def request(self, plan_uuid: str) -> PrRequest | None:
-        row = self._conn.execute(_GET_REQUEST, {"plan": plan_uuid}).fetchone()
-        return None if row is None else PrRequest(**row)
+        def run() -> PrRequest | None:
+            row = self._conn.execute(_GET_REQUEST, {"plan": plan_uuid}).fetchone()
+            return None if row is None else PrRequest(**row)
+
+        return self._retrying(run)
 
     # -- the requester's approval, API -----------------------------------------------------------
 
     def approve(self, plan_uuid: str, requested_by: str) -> PrRequest:
         """Record the approval and queue the PR. Idempotent: an existing request is returned unchanged,
         except that one that ended in an error is queued again."""
-        row = self._conn.execute(_INSERT, {"plan": plan_uuid, "by": requested_by}).fetchone()
+        row = self._retrying(
+            lambda: self._conn.execute(_INSERT, {"plan": plan_uuid, "by": requested_by}).fetchone()
+        )
         if row is not None:
             return PrRequest(**row)
         existing = self.request(plan_uuid)
@@ -137,25 +183,43 @@ class PgPrStore:
 
     def claim(self) -> str | None:
         """The plan_uuid of a queued request, now marked running for this worker."""
-        with self._conn.transaction():
-            row = self._conn.execute(_CLAIM, {"worker": self._worker}).fetchone()
-        return None if row is None else str(row["plan_uuid"])
+
+        def run() -> str | None:
+            with self._conn.transaction():
+                row = self._conn.execute(_CLAIM, {"worker": self._worker}).fetchone()
+            return None if row is None else str(row["plan_uuid"])
+
+        return self._retrying(run)
 
     def finish(self, plan_uuid: str, branch: str, sha: str, number: int, url: str) -> None:
-        self._conn.execute(
-            _DONE,
-            {
-                "plan": plan_uuid,
-                "branch": branch,
-                "sha": sha,
-                "number": number,
-                "url": url,
-                "worker": self._worker,
-            },
+        self._retrying(
+            lambda: self._conn.execute(
+                _DONE,
+                {
+                    "plan": plan_uuid,
+                    "branch": branch,
+                    "sha": sha,
+                    "number": number,
+                    "url": url,
+                    "worker": self._worker,
+                },
+            )
         )
 
     def fail(self, plan_uuid: str, error: str) -> None:
-        self._conn.execute(_ERROR, {"plan": plan_uuid, "error": error[:2000], "worker": self._worker})
+        self._retrying(
+            lambda: self._conn.execute(
+                _ERROR, {"plan": plan_uuid, "error": error[:2000], "worker": self._worker}
+            )
+        )
 
     def requeue_own_running(self) -> int:
-        return self._conn.execute(_REQUEUE_OWN, {"worker": self._worker}).rowcount
+        """At start-up: a `running` request claimed under this worker id was left by a crashed process
+        of the same worker. A worker never touches another worker's requests here; `reclaim_stale`
+        covers one that died under a different id."""
+        return self._retrying(lambda: self._conn.execute(_REQUEUE_OWN, {"worker": self._worker}).rowcount)
+
+    def reclaim_stale(self, lease_s: float) -> int:
+        """At start-up: a `running` request whose claim is older than `lease_s`, under any worker id, is
+        presumed abandoned."""
+        return self._retrying(lambda: self._conn.execute(_RECLAIM_STALE, {"lease_s": lease_s}).rowcount)

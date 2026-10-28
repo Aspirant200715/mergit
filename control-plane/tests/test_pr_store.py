@@ -52,7 +52,8 @@ def seed_plan(db: Any, n_tasks: int = 2, state: str = "done") -> tuple[str, list
     ids = []
     for i in range(n_tasks):
         db.execute(
-            "INSERT INTO tasks VALUES (%s, %s, %s, 'x', %s, 1)",
+            'INSERT INTO tasks (plan_uuid, "index", title, instructions, phi, budget_usdc_units)'
+            " VALUES (%s, %s, %s, 'x', %s, 1)",
             (plan_uuid, i, f"task {i}", json.dumps(phi())),
         )
         ids.append(mergit_receipt.task_id(plan_id, i, 1))
@@ -172,3 +173,28 @@ def test_requeue_only_this_workers_running_requests(dsn: str, db: Any):
     PgPrStore.connect(dsn, "w2").claim()
     assert PgPrStore.connect(dsn, "w1").requeue_own_running() == 1
     assert sorted(r["status"] for r in db.execute("SELECT status FROM pr_requests")) == ["queued", "running"]
+
+
+def test_reclaim_stale_requeues_any_workers_claim_past_its_lease(dsn: str, db: Any):
+    """Unlike a job, a stuck PR request is simply requeued, never marked error: opening a PR is
+    idempotent, so there is no double-pay risk in trying again."""
+    a, _ = seed_plan(db)
+    b, _ = seed_plan(db)
+    api = PgPrStore.connect(dsn)
+    api.approve(a, REQUESTER)
+    api.approve(b, REQUESTER)
+    PgPrStore.connect(dsn, "w1").claim()
+    PgPrStore.connect(dsn, "w2").claim()
+    db.execute("UPDATE pr_requests SET claimed_at = now() - interval '2 hours' WHERE claimed_by = 'w1'")
+    assert PgPrStore.connect(dsn, "w3").reclaim_stale(lease_s=3600) == 1
+    rows = {r["claimed_by"]: r["status"] for r in db.execute("SELECT claimed_by, status FROM pr_requests")}
+    assert rows == {None: "queued", "w2": "running"}
+
+
+def test_claim_reconnects_after_the_connection_is_lost(dsn: str, db: Any):
+    seed_plan(db)
+    (plan_uuid,) = [r["plan_uuid"] for r in db.execute("SELECT plan_uuid::text FROM plans")]
+    PgPrStore.connect(dsn).approve(plan_uuid, REQUESTER)
+    store = PgPrStore.connect(dsn, "w1")
+    store._conn.close()  # simulate the connection dying under it, between requests
+    assert store.claim() == plan_uuid

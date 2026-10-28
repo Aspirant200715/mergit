@@ -147,7 +147,14 @@ def main() -> int:
         built.jobs.reclaim_stale(cfg.job_lease_s),
     )
     if built.prs is not None:
-        log.info("requeued %d PR requests", built.prs.requeue_own_running())
+        log.info(
+            "requeued %d PR requests this worker left running before a restart",
+            built.prs.requeue_own_running(),
+        )
+        log.info(
+            "reclaimed %d PR requests left running past their lease by any worker",
+            built.prs.reclaim_stale(cfg.job_lease_s),
+        )
     else:
         log.info("no GITHUB_TOKEN: pull-request requests will not be handled by this worker")
     log.info("removed %d stale sandbox containers", reap_stale(worker_id))
