@@ -1,8 +1,7 @@
 # control-plane
 
 Python side of Mergit v0: planner, task graph, API and the agent worker. Two packages share this project:
-the **API** (`mergit_cp/`, plan tasks O1 to O4 and O7) and the **agent worker** (`mergit_worker/`, O5).
-Outcomes and retries (O6) are the one piece of this track with no PR yet.
+the **API** (`mergit_cp/`, plan tasks O1 to O4, O6 and O7) and the **agent worker** (`mergit_worker/`, O5).
 
 ## The API
 
@@ -15,6 +14,7 @@ start, under an advisory lock, so several instances can start together.
 | `POST /v0/plans` | `{goal, repo_url, ref, budget_usdc_units, category}`: the planner drafts tasks, each with a Φ. Rate limited per wallet |
 | `PATCH /v0/plans/{plan_uuid}` | Replaces the tasks of a draft. Checked exactly like a planner answer |
 | `POST /v0/plans/{plan_uuid}/approve` | `{agents: {"<index>": [agent_id, ...]}, funding: "wallet" \| "credits"}`. Fixes each task's `phi_hash` and the agent picks, and sends `plan.approved` |
+| `POST /v0/plans/{plan_uuid}/abandon` | Requester gives up on this plan: moves it to `closed` and sends `plan.closed` (O6) |
 | `POST /v0/chain-events` | Everything the gateway reports back (spec/events-v0.md). Idempotent on `event_id`; requires `Authorization: Bearer CHAIN_EVENTS_TOKEN` |
 | `GET /v0/plans` | The signed-in requester's own plans, summary only |
 | `GET /v0/plans/{plan_uuid}` | The plan, its tasks, every attempt (`jobs`) and every money/verdict event concerning it. Requester-only (`403`/`404`) |
@@ -35,6 +35,7 @@ draft can change.
 | `graph.py` | `ready_tasks`: which indexes may dispatch right now, from dependency and job state alone |
 | `dispatch.py` | `dispatch_task` (one attempt), `dispatch_ready` (every index `ready_tasks` names), `record_escrowed` |
 | `chain_events.py` | `POST /v0/chain-events`: acts on `plan.funded` and `task.escrowed`, stores the rest for O6 |
+| `outcomes.py` | O6: reacts to a finished job (`process_due`), `stuck_indexes` (`needs_requester`), `abandon` |
 | `events.py` | Transactional outbox to the gateway: retries, per-plan order, no double send across instances |
 | `spec.py` | The JSON Schemas in `spec/schemas`, used to check what this service sends and receives |
 | `runs.py`, `routes_runs.py` | The read API: a requester's plans, one plan's full detail, the agent roster |
@@ -49,17 +50,48 @@ logged error with the row marked failed.
 with no unmet dependency (`graph.ready_tasks`), and, if anything was dispatched, moves it on to `running`.
 Each dispatch records what it asked for in `task_dispatches`, so the matching `task.escrowed` (which carries
 only a `task_id`) knows which job to queue. `dispatch_task` and `dispatch_ready` are also the functions O6
-calls directly: a retry (`dispatch_task` with the next agent and `attempt + 1`) and newly-unblocked
-dependents after a pass (`dispatch_ready` again). Every other event type the gateway sends is stored and left
-for O6, which moves money and reputation on them but never the task graph. `CHAIN_EVENTS_TOKEN` is this
-deployment's own choice: spec/events-v0.md names a token for the other two legs but not this one, so this is
-worth confirming with the gateway side before go-live rather than leaving the endpoint open.
+(`outcomes.py`) calls directly: a retry (`dispatch_task` with the next agent and `attempt + 1`) and
+newly-unblocked dependents after a pass (`dispatch_ready` again) — one rule, never two copies of it. Every
+other event type the gateway sends (`verdict.recorded`, `task.released`, `task.returned`, `challenge.*`,
+`credits.denied`) is stored and nothing acts on it: Φ is the only thing that moves the task graph.
+`CHAIN_EVENTS_TOKEN` is this deployment's own choice: spec/events-v0.md names a token for the other two legs
+but not this one, so this is worth confirming with the gateway side before go-live rather than leaving the
+endpoint open.
 
 A task that depends on another is dispatched only once its dependency has passed (`ready_tasks`), but the
 worker still clones only the plan's base ref (O5) for every job, so a dependent task does not actually see
 its dependency's change in its own checkout. That gap sits between O4, O5 and O9 and is flagged on PR #15;
 PR #15 has since fixed its side by having the worker apply a dependency's stored patch before a dependent
 task runs (once these branches merge, this note can go).
+
+## Outcomes, retries and escalation (plan task O6)
+
+The worker never calls back into this service with a job's result; it writes it straight to the job's own
+row (`jobs.status`, `jobs.phi_holds`), over the database both sides share. `outcomes.process_due` is this
+service's side of that handoff: a background loop (`OUTCOME_POLL_S`, default 1s, same shape as the event
+sender) claims every job finished and not yet reacted to (`FOR UPDATE SKIP LOCKED`) and, per job:
+
+- `phi_holds = true`: the index passed. Nothing else to write — `graph.py` already reads "passed" straight
+  off `jobs.phi_holds`, so a pass needs no second record of itself.
+- `phi_holds = false` or `NULL` (Φ could not run at all): dispatch the requester's next agent for this
+  index, one attempt higher, if `tasks.agents` has one left and the attempt cap (`MAX_ATTEMPTS`, 3) is not
+  reached. `NULL` is treated exactly like `false` here — Φ being inconclusive is never a silent pass.
+
+Either way, `dispatch_ready` is asked what just became dispatchable (the same question O4 asks on
+`plan.funded`), and a plan whose every index has passed moves to `done`.
+
+An index that fails its last allowed attempt is `needs_requester` — not a stored state, but
+`outcomes.stuck_indexes`' answer, computed from `jobs` and `tasks.agents` on demand: it is exactly the set
+`dispatch_ready` will never find ready again on its own. **`POST /v0/plans/{plan_uuid}/abandon`** is the
+requester's way out of a stuck plan: moves it to `closed` and sends `plan.closed`, idempotently and without
+requiring every index to actually be stuck first — a requester may have other reasons.
+
+`verdict.recorded`, `task.released`, `task.returned` and the rest are not acted on here either; they are
+simply the rows `chain_events.py` already stores for every event type with no handler. Turning them into a
+real per-plan ledger — who was paid, how much, why — is **not** part of this pass: `runs.py`'s `money_events`
+keeps reading the raw `chain_events_seen` log directly, as documented below. That's a deliberate scope cut,
+not an oversight: it is a second, separable piece of work, and nothing downstream needs to change when it
+lands, by design (see the O7 section below).
 
 ## Run API and live stream (plan task O7)
 
@@ -72,12 +104,12 @@ things on top of the plan and its tasks:
   its tasks' `task_id` through `task_dispatches` (`receipt.committed`, `verdict.recorded`, `task.released`,
   `task.returned`, `challenge.*`), exactly as `POST /v0/chain-events` received it.
 
-**`money_events` is a stand-in for plan task O6, not O6 itself.** O6 is meant to turn the gateway's events
-into a real ledger (who was paid, how much, why); until it exists, this reads the raw log those events
-already land in (`chain_events_seen`) and returns it close to verbatim. `runs.py`'s docstring says the same
-thing: once O6 lands its own tables, only the queries in that one file should need to change, not the routes
-or the SSE handler. Decided this way, instead of waiting on O6, because O6 has no PR yet and the deadline
-does not move.
+**`money_events` is a stand-in for a real ledger, not that ledger.** O6 (above) now exists, but only its
+task-graph half: outcomes, retries and escalation. Turning the gateway's money and verdict events into
+structured, queryable records (who was paid, how much, why) is a separate piece of that plan task, not done
+in this pass; until it is, `money_events` reads the raw log those events already land in
+(`chain_events_seen`) and returns it close to verbatim. `runs.py`'s docstring says the same thing: once that
+lands, only the queries in that one file should need to change, not the routes or the SSE handler.
 
 **`GET /v0/plans/{plan_uuid}/events`** (SSE) sends a full snapshot of plan and task state on connect, then:
 
@@ -100,7 +132,8 @@ instance would need Postgres `LISTEN`/`NOTIFY` or a shared queue, which is out o
 **Configuration** (`mergit_cp/config.py`). Required: `DATABASE_URL`, `APP_DOMAIN`, `SESSION_SECRET` (32+
 characters), `GATEWAY_URL`, `STORE_URL`, `AGENTS_FILE`, `PLANNER_MODEL`, `EVENTS_TOKEN`, `CHAIN_EVENTS_TOKEN`,
 `WORKER_TOKEN`, plus the model provider key. Defaults: `CHAIN_ID` (84532), `PLANS_PER_HOUR` (10),
-`PLANNER_MAX_TASKS` (8), `MAX_ATTEMPTS` (3), `REPO_HOSTS` (github.com), `CORS_ORIGINS`, `SSE_POLL_S` (1).
+`PLANNER_MAX_TASKS` (8), `MAX_ATTEMPTS` (3), `REPO_HOSTS` (github.com), `CORS_ORIGINS`, `SSE_POLL_S` (1),
+`OUTCOME_POLL_S` (1).
 `WORKER_TOKEN` is this deployment's own choice, like `CHAIN_EVENTS_TOKEN`: spec/events-v0.md does not name a
 token for this leg either, since the whole endpoint is new in O7. The planner model must be priced in
 `prices.toml`, or the API refuses to start. Model choice for the planner is open decision D18, so it has no

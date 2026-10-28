@@ -15,7 +15,7 @@ import mergit_receipt
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-from . import plans
+from . import outcomes, plans
 from .agents import Agent
 from .auth import AddressDep, PoolDep, SettingsDep
 from .events import enqueue
@@ -233,3 +233,23 @@ async def approve_plan(
             retry_window_s=settings.event_retry_window_s,
         )
     return {"plan_id": plan.plan_id, "total_budget_usdc_units": str(total)}
+
+
+@router.post("/{plan_uuid}/abandon")
+async def abandon_plan(
+    plan_uuid: UUID, address: AddressDep, settings: SettingsDep, pool: PoolDep
+) -> dict[str, str]:
+    """The requester gives up on this plan (plan task O6): a stuck ``needs_requester`` index is the
+    expected reason, but nothing here requires that; any plan past ``draft`` may be abandoned."""
+    async with pool.connection() as conn, conn.transaction():
+        plan = await plans.load(conn, plan_uuid, for_update=True)
+        if plan is None:
+            raise HTTPException(status_code=404, detail="no such plan")
+        if plan.requester != address:
+            raise HTTPException(status_code=403, detail="only the requester may abandon this plan")
+        if plan.state == "draft":
+            raise HTTPException(status_code=409, detail="a draft plan has nothing to abandon")
+        if plan.state in ("closed", "done"):
+            raise HTTPException(status_code=409, detail=f"the plan is already {plan.state}")
+        await outcomes.abandon(conn, plan, settings)
+    return {"plan_id": plan.plan_id, "state": "closed"}

@@ -17,14 +17,20 @@ from .config import Settings
 from .db import migrate, open_pool
 from .events import EventDeliverer
 from .llm import LLM, AnthropicLLM
+from .outcomes import OutcomeProcessor
 from .planner import PgCostSink
 from .stream import PlanBroadcaster
 
 
 def create_app(
-    settings: Settings | None = None, *, llm: LLM | None = None, deliver_events: bool = True
+    settings: Settings | None = None,
+    *,
+    llm: LLM | None = None,
+    deliver_events: bool = True,
+    process_outcomes: bool = True,
 ) -> FastAPI:
-    """``deliver_events=False`` leaves events in the outbox, for tests that inspect them."""
+    """``deliver_events=False`` leaves events in the outbox, and ``process_outcomes=False`` leaves
+    finished jobs unprocessed, for tests that want to inspect or drive that state directly."""
     settings = settings or Settings()  # pyright: ignore[reportCallIssue]
 
     @asynccontextmanager
@@ -49,13 +55,18 @@ def create_app(
             timeout_s=settings.event_timeout_s,
         )
         sender = asyncio.create_task(deliverer.run(settings.event_poll_s, stop)) if deliver_events else None
+        processor = OutcomeProcessor(pool, settings)
+        outcomes_task = (
+            asyncio.create_task(processor.run(settings.outcome_poll_s, stop)) if process_outcomes else None
+        )
         try:
             yield
         finally:
             stop.set()
-            if sender is not None:
-                with suppress(asyncio.CancelledError):
-                    await sender
+            for task in (sender, outcomes_task):
+                if task is not None:
+                    with suppress(asyncio.CancelledError):
+                        await task
             await deliverer.aclose()
             await pool.close()
 

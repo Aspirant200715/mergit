@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     event_retry_window_s: float = Field(default=600, gt=0)
     event_poll_s: float = Field(default=1.0, gt=0)
     event_timeout_s: float = Field(default=10.0, gt=0)
+    outcome_poll_s: float = Field(default=1.0, gt=0)
+    """How often finished jobs are checked for a retry, an escalation or plan completion (plan O6)."""
 
     chain_id: int = BASE_SEPOLIA_CHAIN_ID
     nonce_ttl_s: int = Field(default=600, gt=0)
