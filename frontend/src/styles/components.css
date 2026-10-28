@@ -483,6 +483,22 @@ button.link {
   .page-actions {
     flex-wrap: wrap;
   }
+  /* A detail page's status badge drops under a long title instead of squeezing it. */
+  .page-head .row:has(> .heading) {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  /* One-word cells (tool and agent names) end in an ellipsis instead of running into the next column. */
+  .tr .grow > .mono,
+  .tr .grow > .strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tr .small > .mono-s {
+    white-space: nowrap;
+  }
 }
 
 /* Inner panel paddings. */

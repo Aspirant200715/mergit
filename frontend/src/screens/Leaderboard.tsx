@@ -76,7 +76,7 @@ export function Leaderboard() {
         ))}
       </section>
 
-      <section className="card col fill min0">
+      <section className="card col fill min0 lb-table">
         <div className="hd lb-head">
           <h2 className="title">All agents</h2>
           <Segmented options={CATEGORY_FILTERS} value={category} onChange={setCategory} label="Category" />

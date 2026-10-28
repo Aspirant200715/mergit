@@ -229,6 +229,14 @@
   .tab-label {
     display: none;
   }
+  /* Without these the right-hand group runs past the edge and pushes the account button off screen. */
+  .repo-chip,
+  .wallet-pill .mono {
+    display: none;
+  }
+  .wallet-pill {
+    padding: 5px;
+  }
   .tab {
     padding: 8px 11px;
   }
@@ -240,12 +248,17 @@
     padding: 12px 16px;
     row-gap: 12px;
   }
+  /* The tab bar spans the row under the logo, its tabs sharing the width evenly. */
   .tabs {
     grid-column: 1 / -1;
     grid-row: 2;
-    justify-self: start;
+    justify-self: stretch;
     max-width: 100%;
     overflow-x: auto;
+  }
+  .tab {
+    flex: 1;
+    justify-content: center;
   }
   .repo-chip,
   .nav-search,

@@ -733,7 +733,8 @@
   .l-hero-stage {
     min-height: 720px;
     margin-top: 90px;
-    --u: 0.9px;
+    /* The stage is about 1000 units wide; below 900px it scales with the screen instead of running off it. */
+    --u: min(0.9px, calc(100vw / 1000));
   }
   .l-hero-globe {
     left: 30vw;
@@ -767,7 +768,90 @@
     flex-direction: column;
     align-items: stretch;
     gap: 20px;
-    --u: 0.78px;
+    --u: 0.62px;
+  }
+  /* Both hero buttons span the column, so the stacked pair reads as one group. */
+  .l-hero-actions > * {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+  /* The notes stack on a phone; a divider between them would dangle. */
+  .l-hero-notes {
+    justify-content: center;
+  }
+  .l-hero-notes .l-sep {
+    display: none;
+  }
+  /* Behind the agent card rather than over the hero copy, which runs taller than on a tablet. */
+  .l-hero-globe {
+    --globe: min(110vw, 420px);
+    width: var(--globe);
+    left: auto;
+    right: calc(var(--globe) * -0.3);
+    top: auto;
+    bottom: 180px;
+  }
+  .l-hero.ready .l-hero-globe {
+    opacity: 0.7;
+  }
+  /* The card is the full column here, so steps still to come show as faint slots
+     instead of an empty block. They keep their space, so the page never jumps. */
+  .agent-step:not(.on) {
+    opacity: 1;
+    filter: none;
+    transform: none;
+    border-style: dashed;
+    border-color: color-mix(in srgb, var(--l-faint) 45%, transparent);
+    background: transparent;
+  }
+  .agent-step:not(.on) > * {
+    visibility: hidden;
+  }
+  /* Only the newest four blocks fit a phone; show those, centred. The block leaving on the left
+     takes no space, so the four stay centred while it fades out as the row slides one step. */
+  .proof-chain {
+    --step: calc(78 * var(--u) + 20px);
+    mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
+  }
+  .proof-chain-track {
+    justify-content: center;
+    gap: 20px;
+    animation-name: chain-shift-phone;
+  }
+  .proof-block:nth-child(2),
+  .proof-block:nth-child(3) {
+    display: none;
+  }
+  .proof-block.leaving {
+    margin-left: calc(-1 * var(--step));
+  }
+  /* No green highlight on the newest block here; it just pops in. */
+  .proof-block.fresh .proof-tile {
+    border-color: var(--l-line);
+    box-shadow: 0 1px 2px rgba(14, 16, 24, 0.05);
+  }
+  .l-tools {
+    margin-top: 16px;
+  }
+  /* Logo, theme toggle and the call to action have to share 288px on the smallest phones. */
+  .l-nav .l-logo {
+    height: 26px;
+  }
+  .l-nav-actions {
+    gap: 8px;
+  }
+  .l-nav-actions .l-btn {
+    height: 36px;
+    padding: 0 14px;
+    font-size: 13px;
+  }
+  .l-hero-stage {
+    margin-top: 48px;
+  }
+  .l-tools ul {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 10px;
   }
   .l-ghost-card,
   .l-float-tile,
@@ -801,18 +885,205 @@
     justify-self: center;
     transform: rotate(90deg);
   }
-  .l-hero-stage {
-    --u: 0.62px;
-    min-height: 470px;
-    margin-inline: -16px;
-  }
   .l-signin {
     display: none;
   }
   .l-tools li {
     padding: 0 12px;
   }
+
+  /* Spacing. Lengths scale from the 1920px design, so on a phone the unfloored ones
+     shrink to a few pixels; these give every section real room again. */
+  .l-section {
+    padding: 64px 0;
+  }
+  .l-lede {
+    margin-top: 16px;
+  }
+  .how-steps {
+    margin-top: 40px;
+    gap: 36px;
+  }
+  .how-step h3 {
+    margin-top: 18px;
+  }
+  .how-step p {
+    margin-top: 8px;
+  }
+  .how-chip {
+    margin-top: 14px;
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 12px;
+  }
+  .team-grid,
+  .connected-grid {
+    margin-top: 40px;
+    gap: 16px;
+  }
+  .team-card,
+  .connected-card {
+    padding: 24px;
+    border-radius: 20px;
+  }
+  .team-card h3,
+  .connected-card h3 {
+    margin-top: 20px;
+  }
+  .team-card p,
+  .connected-card p {
+    margin-top: 8px;
+  }
+  .team-foot,
+  .connected-trace {
+    margin-top: 20px;
+    padding-top: 16px;
+  }
+  .approval-grid {
+    gap: 32px;
+  }
+  .approval-points {
+    margin-top: 24px;
+    gap: 14px;
+  }
+  .approval-points li {
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .approval-points svg {
+    flex: none;
+    margin-top: 4px;
+  }
+  .approval-card {
+    padding: 22px;
+    border-radius: 22px;
+  }
+  .approval-action {
+    margin-top: 18px;
+    padding: 18px;
+    border-radius: 16px;
+    gap: 8px;
+  }
+  .approval-tags {
+    flex-wrap: wrap;
+  }
+  .approval-buttons {
+    margin-top: 20px;
+    padding-bottom: 22px;
+    gap: 10px;
+  }
+  .approval-buttons .l-btn,
+  .approval-buttons .l-btn-ghost {
+    flex: 1;
+    justify-content: center;
+  }
+  .approval-asks {
+    margin-top: 20px;
+    gap: 14px;
+  }
+  .band-grid {
+    gap: 32px;
+  }
+  .band-title {
+    margin-top: 14px;
+  }
+  .band-lede {
+    margin-top: 16px;
+  }
+  .band-cards {
+    gap: 12px;
+  }
+  .band-card {
+    padding: 20px;
+    border-radius: 16px;
+    gap: 10px;
+    min-height: 0;
+  }
+  .band-note {
+    margin-top: 20px;
+    align-items: flex-start;
+  }
+  /* minmax(0, …) lets the receipt shrink below its content's width instead of running off screen. */
+  .proof-grid {
+    margin-top: 40px;
+    gap: 16px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .receipt > .row.between {
+    flex-wrap: wrap;
+  }
+  .receipt-steps .l-mono {
+    font-size: 10px;
+  }
+  .receipt,
+  .identity {
+    padding: 22px;
+    border-radius: 22px;
+  }
+  .receipt-hash {
+    margin-top: 20px;
+    padding: 16px;
+    border-radius: 14px;
+    gap: 6px;
+  }
+  .receipt-facts {
+    margin-top: 8px;
+  }
+  .receipt-facts > div {
+    padding: 10px 0;
+  }
+  .receipt-steps {
+    margin-top: 12px;
+    padding-top: 20px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .receipt-steps li {
+    gap: 10px;
+  }
+  .identity h3 {
+    margin-top: 28px;
+  }
+  .identity p {
+    margin-top: 14px;
+  }
+  .identity-note {
+    margin-top: 24px;
+    padding: 16px;
+    border-radius: 14px;
+    gap: 8px;
+  }
+  .faq-item {
+    padding: 20px 0;
+  }
+  .faq-item p {
+    margin-top: 10px;
+  }
+  .cta-inner {
+    gap: 24px;
+  }
+
   .footer-cols {
     flex-wrap: wrap;
+  }
+  .footer-cols ul {
+    font-size: 13px;
+  }
+  /* Tagline beside the logo rather than under it. */
+  .footer-brand {
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+  }
+  .footer-brand .l-logo {
+    height: 26px;
+  }
+  .footer-top .footer-brand p {
+    font-size: 13px;
+  }
+}
+
+@keyframes chain-shift-phone {
+  from {
+    transform: translateX(var(--step));
   }
 }

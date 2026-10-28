@@ -91,4 +91,17 @@
   .ov-latest {
     flex-wrap: wrap;
   }
+  /* A long tool name pushes the countdown onto its own line rather than into it. */
+  .ov-ask-head {
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+  /* Status is the last column left on a phone, so it sits against the right edge. */
+  .ov-status {
+    text-align: right;
+  }
+  /* The chip's own padding sits outside the column, so its label ends in line with the heading. */
+  .ov-status .badge {
+    margin-right: -10px;
+  }
 }

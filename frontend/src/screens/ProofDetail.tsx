@@ -116,7 +116,7 @@ export function ProofDetail() {
             </dl>
             <div className="col g8 pf-section">
               <span className="cap c3">Agent identity</span>
-              <div className="inner pad-md row g12">
+              <div className="inner pad-md row g12 pf-identity">
                 <AgentAvatar kind={proof.agent.kind} size={36} />
                 <div className="col grow">
                   <span className="strong">{proof.agent.name}</span>
@@ -144,7 +144,7 @@ export function ProofDetail() {
         </div>
 
         <div className="col g16 min0">
-          <div className="card row g16 pad">
+          <div className="card row g16 pad pf-source">
             <AppTile icon="github" />
             <div className="col grow">
               <h2 className="title">{proof.pr.title}</h2>

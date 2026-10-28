@@ -46,6 +46,34 @@ for (const width of [320, 390]) {
   });
 }
 
+for (const width of [768, 1000]) {
+  test(`the nav keeps the account button on screen at ${String(width)}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto("/app");
+    const box = await page.getByRole("button", { name: /Account/ }).boundingBox();
+    expect((box?.x ?? 0) + (box?.width ?? Infinity)).toBeLessThanOrEqual(width);
+  });
+}
+
+test("table cells stay in their columns on a phone", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  for (const path of ["/app", "/app/leaderboard", "/app/integrations"]) {
+    await page.goto(path);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    // Each cell's text ends inside its own box, so it can't run into the next column. The status chips
+    // in the last column hang their padding past it on purpose, so their labels line up with the heading.
+    const spills = await page.locator(".tr > *:not(.ov-status, .wl-status)").evaluateAll((cells) =>
+      cells.flatMap((cell) => {
+        const box = cell.getBoundingClientRect();
+        return Array.from(cell.querySelectorAll("*"))
+          .filter((el) => el.getBoundingClientRect().right > box.right + 0.5)
+          .map((el) => el.textContent.trim());
+      }),
+    );
+    expect(spills, path).toEqual([]);
+  }
+});
+
 test("integration cards keep their contents inside on a phone", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto("/app/integrations");

@@ -132,7 +132,7 @@ export function Wallet() {
             <span className="grow">Task</span>
             <span className="w-100 hide-md">Block</span>
             <span className="w-110 hide-sm">Transaction</span>
-            <span className="w-120">Status</span>
+            <span className="w-120 wl-status">Status</span>
             <span className="w-60 text-right hide-sm">When</span>
           </div>
           <div className="scroll">
@@ -144,7 +144,7 @@ export function Wallet() {
                 </div>
                 <span className="mono c2 w-100 hide-md">{s.block}</span>
                 <span className={`mono w-110 hide-sm ${s.settled ? "cz" : "c3"}`}>{s.tx}</span>
-                <span className="w-120">
+                <span className="w-120 wl-status">
                   {s.settled ? (
                     <Badge status="Verified" label="Settled" />
                   ) : (

@@ -122,3 +122,24 @@
     grid-template-columns: 1fr;
   }
 }
+@media (max-width: 760px) {
+  /* Tile, title and badge stack, so the title is not squeezed to a word per line. */
+  .pf-source {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .pf-identity {
+    flex-wrap: wrap;
+  }
+  .pf-identity > .grow {
+    flex-basis: 140px;
+  }
+  .pf-steps > li {
+    min-width: 0;
+    padding-right: 6px;
+  }
+  .pf-steps .small {
+    font-size: 12px;
+  }
+}

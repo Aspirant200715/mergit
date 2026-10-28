@@ -109,7 +109,7 @@ export function Overview() {
             <span className="w-130 hide-md">Agents</span>
             <span className="w-90 hide-md">Apps</span>
             <span className="w-84 hide-sm">Started</span>
-            <span className="w-130">Status</span>
+            <span className="w-130 ov-status">Status</span>
           </div>
           <div className="scroll">
             {visible.map((r, i) => (
@@ -117,7 +117,7 @@ export function Overview() {
                 <div className="col grow">
                   <span className="strong ellipsis">{r.title}</span>
                   <span className="small c3">
-                    <span className="mono-s">{r.id}</span>&nbsp;&nbsp;{r.source}
+                    <span className="mono-s">{r.id}</span>&nbsp; {r.source}
                   </span>
                 </div>
                 <span className="w-130 hide-md">
@@ -131,7 +131,7 @@ export function Overview() {
                   ))}
                 </span>
                 <span className="w-84 small c2 hide-sm">{r.started}</span>
-                <span className="w-130">
+                <span className="w-130 ov-status">
                   <Badge status={r.status} />
                 </span>
               </Link>
@@ -152,7 +152,7 @@ export function Overview() {
             </div>
             {items.map((a) => (
               <div key={a.id} className="inner pad-md col g8 rise">
-                <div className="row between">
+                <div className="row between ov-ask-head">
                   <span className="mono">{a.tool}</span>
                   <span className={`mono-s ${a.remaining > 0 ? "ca" : "c3"}`}>
                     {a.remaining > 0 ? `expires ${a.remaining}s` : "expired"}

@@ -45,7 +45,7 @@ export function Footer() {
     <footer className="l-footer">
       <div className="l-container">
         <div className="footer-top">
-          <div className="col g12">
+          <div className="col g12 footer-brand">
             <Link to={paths.landing} className="l-brand" aria-label="Mergit home">
               <MergitLogo title="" className="l-logo" />
             </Link>
