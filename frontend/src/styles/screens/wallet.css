@@ -94,4 +94,12 @@
     font-size: 36px;
     line-height: 40px;
   }
+  /* Status is the last column left on a phone, so it sits against the right edge. */
+  .wl-status {
+    text-align: right;
+  }
+  /* The chip's own padding sits outside the column, so its label ends in line with the heading. */
+  .wl-status .badge {
+    margin-right: -10px;
+  }
 }

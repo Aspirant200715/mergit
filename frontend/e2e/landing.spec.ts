@@ -59,6 +59,60 @@ test.describe("landing page", () => {
       await ctx.close();
     }
   });
+
+  for (const width of [360, 390]) {
+    test(`the hero lays out as one column on a ${String(width)}px phone`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.addInitScript(() => {
+        sessionStorage.setItem("mergit-intro-seen", "1");
+      });
+      await page.goto("/");
+      const box = async (selector: string) => {
+        const b = await page.locator(selector).first().boundingBox();
+        if (!b) throw new Error(`${selector} has no box`);
+        return b;
+      };
+      const title = await box(".l-hero-title");
+      const card = await box(".agent-card");
+      // The card sits in the same column as the copy, not bled out to the screen edge.
+      expect(Math.abs(card.x - title.x), "card and title share a left edge").toBeLessThanOrEqual(1);
+      expect(card.x + card.width).toBeLessThanOrEqual(width);
+
+      // The globe stays clear of the copy above the card.
+      const notes = await box(".l-hero-notes");
+      const globe = await box(".l-hero-globe");
+      expect(globe.y, "globe starts below the hero notes").toBeGreaterThanOrEqual(notes.y + notes.height);
+
+      // The two hero buttons stack at one width.
+      const [demo, how] = await page
+        .locator(".l-hero-actions > *")
+        .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width));
+      expect(demo).toBe(how);
+    });
+  }
+
+  // The page clips sideways overflow, so a too-wide card is cut off rather than scrollable; check every box.
+  for (const width of [320, 390, 768]) {
+    test(`no landing content runs off a ${String(width)}px screen`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.addInitScript(() => {
+        sessionStorage.setItem("mergit-intro-seen", "1");
+      });
+      await page.goto("/");
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      const spills = await page.evaluate(() => {
+        const vw = document.documentElement.clientWidth;
+        return Array.from(document.querySelectorAll(".landing *"))
+          .filter((el) => !el.closest(".l-hero-globe, .proof-chain, svg"))
+          .filter((el) => {
+            const box = el.getBoundingClientRect();
+            return box.width > 0 && (box.right > vw + 0.5 || box.left < -0.5);
+          })
+          .map((el) => `${el.tagName.toLowerCase()}.${Array.from(el.classList).join(".")}`);
+      });
+      expect(spills).toEqual([]);
+    });
+  }
 });
 
 test.describe("sign in", () => {

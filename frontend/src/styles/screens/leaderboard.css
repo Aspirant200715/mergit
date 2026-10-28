@@ -46,4 +46,13 @@
   .lb-podium {
     grid-template-columns: 1fr;
   }
+  /* The score needs far less than its desktop column; the agent name gets the rest. The box is as
+     wide as the heading and reaches back over the column gap, so the heading ends with the row
+     content and each score sits centred under it, while the agent column keeps its width. */
+  .lb-table .w-120 {
+    width: 77px;
+    margin-left: -13px;
+    text-align: center;
+    white-space: nowrap;
+  }
 }
