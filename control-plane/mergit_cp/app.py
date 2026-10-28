@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from mergit_worker.meter import PriceTable
 
-from . import auth, routes_plans
+from . import auth, chain_events, routes_plans
 from .agents import load_agents
 from .config import Settings
 from .db import migrate, open_pool
@@ -68,4 +68,5 @@ def create_app(
     )
     app.include_router(auth.router)
     app.include_router(routes_plans.router)
+    app.include_router(chain_events.router)
     return app

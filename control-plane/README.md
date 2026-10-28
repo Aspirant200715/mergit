@@ -1,8 +1,8 @@
 # control-plane
 
 Python side of Mergit v0: planner, task graph, API and the agent worker. Two packages share this project:
-the **API** (`mergit_cp/`, plan tasks O1 to O3 so far) and the **agent worker** (`mergit_worker/`, O5). The
-task graph and dispatch (O4), outcomes (O6) and the read API with live events (O7) follow.
+the **API** (`mergit_cp/`, plan tasks O1 to O4 so far) and the **agent worker** (`mergit_worker/`, O5).
+Outcomes and retries (O6) and the read API with live events (O7) follow.
 
 ## The API
 
@@ -15,6 +15,7 @@ start, under an advisory lock, so several instances can start together.
 | `POST /v0/plans` | `{goal, repo_url, ref, budget_usdc_units, category}`: the planner drafts tasks, each with a Φ. Rate limited per wallet |
 | `PATCH /v0/plans/{plan_uuid}` | Replaces the tasks of a draft. Checked exactly like a planner answer |
 | `POST /v0/plans/{plan_uuid}/approve` | `{agents: {"<index>": [agent_id, ...]}, funding: "wallet" \| "credits"}`. Fixes each task's `phi_hash` and the agent picks, and sends `plan.approved` |
+| `POST /v0/chain-events` | Everything the gateway reports back (spec/events-v0.md). Idempotent on `event_id`; requires `Authorization: Bearer CHAIN_EVENTS_TOKEN` |
 
 Amounts are decimal strings of USDC base units everywhere. Only the requester may edit or approve, and only a
 draft can change.
@@ -26,19 +27,38 @@ draft can change.
 | `predicates.py` | `check_predicate`: the spec schema plus a guard against commands that cannot fail |
 | `llm.py` | Async model adapter for the planner (the worker has its own sync one) |
 | `plans.py`, `routes_plans.py` | Plan storage and routes |
+| `graph.py` | `ready_tasks`: which indexes may dispatch right now, from dependency and job state alone |
+| `dispatch.py` | `dispatch_task` (one attempt), `dispatch_ready` (every index `ready_tasks` names), `record_escrowed` |
+| `chain_events.py` | `POST /v0/chain-events`: acts on `plan.funded` and `task.escrowed`, stores the rest for O6 |
 | `events.py` | Transactional outbox to the gateway: retries, per-plan order, no double send across instances |
-| `spec.py` | The JSON Schemas in `spec/schemas`, used to check what this service sends |
+| `spec.py` | The JSON Schemas in `spec/schemas`, used to check what this service sends and receives |
 
 Events are written in the same transaction as the change they report, then delivered to
 `{GATEWAY_URL}/v0/events` with `Authorization: Bearer EVENTS_TOKEN` and `Idempotency-Key`. A 5xx or a network
 error is retried with backoff for `EVENT_RETRY_WINDOW_S` (600); any other 4xx stops at once. Both end as a
 logged error with the row marked failed.
 
+**Dispatch (plan task O4).** `plan.funded` moves the plan to `funded`, dispatches attempt 1 for every index
+with no unmet dependency (`graph.ready_tasks`), and, if anything was dispatched, moves it on to `running`.
+Each dispatch records what it asked for in `task_dispatches`, so the matching `task.escrowed` (which carries
+only a `task_id`) knows which job to queue. `dispatch_task` and `dispatch_ready` are also the functions O6
+calls directly: a retry (`dispatch_task` with the next agent and `attempt + 1`) and newly-unblocked
+dependents after a pass (`dispatch_ready` again). Every other event type the gateway sends is stored and left
+for O6, which moves money and reputation on them but never the task graph. `CHAIN_EVENTS_TOKEN` is this
+deployment's own choice: spec/events-v0.md names a token for the other two legs but not this one, so this is
+worth confirming with the gateway side before go-live rather than leaving the endpoint open.
+
+A task that depends on another is dispatched only once its dependency has passed (`ready_tasks`), but the
+worker still clones only the plan's base ref (O5) for every job, so a dependent task does not actually see
+its dependency's change in its own checkout. That gap sits between O4, O5 and O9 and is flagged on PR #15
+rather than worked around here.
+
 **Configuration** (`mergit_cp/config.py`). Required: `DATABASE_URL`, `APP_DOMAIN`, `SESSION_SECRET` (32+
-characters), `GATEWAY_URL`, `STORE_URL`, `AGENTS_FILE`, `PLANNER_MODEL`, `EVENTS_TOKEN`, plus the model provider
-key. Defaults: `CHAIN_ID` (84532), `PLANS_PER_HOUR` (10), `PLANNER_MAX_TASKS` (8), `MAX_ATTEMPTS` (3),
-`REPO_HOSTS` (github.com), `CORS_ORIGINS`. The planner model must be priced in `prices.toml`, or the API refuses
-to start. Model choice for the planner is open decision D18, so it has no default in code.
+characters), `GATEWAY_URL`, `STORE_URL`, `AGENTS_FILE`, `PLANNER_MODEL`, `EVENTS_TOKEN`, `CHAIN_EVENTS_TOKEN`,
+plus the model provider key. Defaults: `CHAIN_ID` (84532), `PLANS_PER_HOUR` (10), `PLANNER_MAX_TASKS` (8),
+`MAX_ATTEMPTS` (3), `REPO_HOSTS` (github.com), `CORS_ORIGINS`. The planner model must be priced in
+`prices.toml`, or the API refuses to start. Model choice for the planner is open decision D18, so it has no
+default in code.
 
 **Database.** The control plane uses its own database, not the gateway's: both have tables named `plans`,
 `tasks` and `outbox`, and spec/events-v0.md says neither reads the other's.
@@ -186,6 +206,12 @@ dispatch and open can make a patch fail to apply; fixing it means pinning a base
 schema, which is outside this pass. `open-pr` also does not bind to the specific diff the requester saw in
 `GET .../diff` (no `diff_sha256` round trip), so a retry mid-review could approve a slightly different diff
 than the one read; the frontend side of that doesn't exist yet either.
+
+`jobs.status` only ever reaches `queued` once O4 has recorded a `task.escrowed`; before that, a dispatched
+attempt exists only in `task_dispatches`. The real migration is `migrations/0004_dispatch.sql` (plan task
+O4); `tests/jobs_schema.sql` is a copy of the same columns for the worker's own unit tests, kept in step
+with it on purpose rather than imported, so a renamed or retyped column shows up as a failing test on both
+sides.
 
 ## Develop
 

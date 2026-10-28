@@ -37,6 +37,13 @@ class Settings(BaseSettings):
 
     events_token: SecretStr
     """Shared secret sent to the gateway as ``Authorization: Bearer`` (spec/events-v0.md)."""
+    chain_events_token: SecretStr
+    """Shared secret the gateway must send as ``Authorization: Bearer`` on POST /v0/chain-events.
+
+    spec/events-v0.md names a token for each of the other two legs (``EVENTS_TOKEN`` out,
+    ``STORE_WRITE_TOKEN`` for the worker) but not this one; this is the one assumed for gateway to
+    orchestrator, to confirm with Yash before go-live rather than leave the endpoint open.
+    """
     event_retry_window_s: float = Field(default=600, gt=0)
     event_poll_s: float = Field(default=1.0, gt=0)
     event_timeout_s: float = Field(default=10.0, gt=0)
