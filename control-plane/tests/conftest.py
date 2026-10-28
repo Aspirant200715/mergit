@@ -69,6 +69,7 @@ def settings(database_url: str, agents_files: tuple[Path, Path]) -> Settings:
         agents_file=str(chain),
         agents_config=str(config),
         cors_origins=["http://localhost:5173"],
+        planner_model="claude-opus-5",
     )
 
 

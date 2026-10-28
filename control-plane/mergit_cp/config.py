@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     """Model and system prompt per agent name."""
     cors_origins: Annotated[list[str], NoDecode] = []
 
+    planner_model: str
+    """The planner's model (HLD D18 is open, so this is a deployment choice, not a code default)."""
+    prices_file: str = "prices.toml"
+    planner_max_tasks: int = Field(default=8, ge=1, le=32)
     chain_id: int = BASE_SEPOLIA_CHAIN_ID
     nonce_ttl_s: int = Field(default=600, gt=0)
     session_ttl_s: int = Field(default=12 * 3600, gt=0)
