@@ -11,13 +11,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from mergit_worker.meter import PriceTable
 
-from . import auth, chain_events, routes_plans
+from . import auth, chain_events, routes_plans, routes_runs
 from .agents import load_agents
 from .config import Settings
 from .db import migrate, open_pool
 from .events import EventDeliverer
 from .llm import LLM, AnthropicLLM
 from .planner import PgCostSink
+from .stream import PlanBroadcaster
 
 
 def create_app(
@@ -38,6 +39,7 @@ def create_app(
         app.state.pool = pool
         app.state.llm = llm or AnthropicLLM()
         app.state.costs = PgCostSink(pool, prices)
+        app.state.broadcaster = PlanBroadcaster()
 
         stop = asyncio.Event()
         deliverer = EventDeliverer(
@@ -69,4 +71,7 @@ def create_app(
     app.include_router(auth.router)
     app.include_router(routes_plans.router)
     app.include_router(chain_events.router)
+    app.include_router(routes_runs.router)
+    app.include_router(routes_runs.agents_router)
+    app.include_router(routes_runs.internal_router)
     return app

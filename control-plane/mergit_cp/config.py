@@ -53,6 +53,14 @@ class Settings(BaseSettings):
     session_ttl_s: int = Field(default=12 * 3600, gt=0)
     db_pool_max: int = Field(default=10, gt=0)
 
+    worker_token: SecretStr
+    """Shared secret the worker sends as ``Authorization: Bearer`` on POST /v0/internal/progress
+    (plan task O7). Not named in spec/events-v0.md, which only covers the orchestrator-gateway leg;
+    this is this service's own choice for its one worker-facing endpoint."""
+    sse_poll_s: float = Field(default=1.0, gt=0)
+    """How often GET /v0/plans/{id}/events re-reads plan and task state from the database. A step the
+    worker posts to /v0/internal/progress is relayed to subscribers immediately, not on this timer."""
+
     @field_validator("cors_origins", "repo_hosts", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:

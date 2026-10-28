@@ -110,6 +110,7 @@ SETTINGS = Settings(
     planner_model="claude-opus-5",
     events_token=SecretStr("test-events-token"),
     chain_events_token=SecretStr("test-chain-events-token"),
+    worker_token=SecretStr("test-worker-token"),
 )
 
 
