@@ -235,7 +235,8 @@
     display: none;
   }
   .wallet-pill {
-    padding: 5px;
+    /* Only the 22px orb is visible here; 11px on every side keeps the tap target at the 44px guideline. */
+    padding: 11px;
   }
   .tab {
     padding: 8px 11px;
@@ -266,7 +267,7 @@
     display: none;
   }
   .wallet-pill {
-    padding: 5px;
+    padding: 11px; /* 22px orb + 11px on every side = the 44px tap-target guideline */
   }
   .main {
     padding: 8px 16px 28px;
