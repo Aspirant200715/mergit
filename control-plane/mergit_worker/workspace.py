@@ -4,15 +4,24 @@ The container mounts `work/` and can write anything there, including symlinks an
 making. So the host never trusts what it finds inside `work/`:
 
 - the git directory lives outside `work/`, and every host git call names it with `--git-dir` and
-  `--work-tree`, so a planted `.git` file, hook or config is never read;
+  `--work-tree`, so a planted top-level `.git` file, hook or config is never read;
+- a `.git` *anywhere inside* `work/` is refused outright before any git command runs over the tree
+  (`changed_paths`, `diff_from_head`): git recurses into a gitlink or nested repository on its own,
+  using *that* repository's own config, not ours, and `core.fsmonitor` there runs a command on the
+  host. Scanning first and refusing is simpler and safer than trying to pass the right flags to every
+  git invocation that might ever walk the tree;
+- `changed_paths` also reports paths a `.gitignore` would otherwise hide, since an agent could
+  otherwise satisfy `allowed_paths` by writing outside it and ignoring the result;
 - file reads and writes walk the path one component at a time with `O_NOFOLLOW`, so a symlink the
-  agent created cannot point a host read or write outside the checkout.
+  agent created cannot point a host read or write outside the checkout, and the open is non-blocking,
+  so a named pipe the agent created cannot hang the worker.
 """
 
 from __future__ import annotations
 
 import contextlib
 import errno
+import logging
 import os
 import re
 import shutil
@@ -22,9 +31,12 @@ import tempfile
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+from typing import Any
 from urllib.parse import urlsplit
 
 import mergit_receipt
+
+log = logging.getLogger(__name__)
 
 _REF = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@+-]{0,254}$")
 _MAX_LIST_ENTRIES = 2000
@@ -127,13 +139,42 @@ class Workspace:
         return cls(base, work, gitdir, head, limits.timeout_s)
 
     def destroy(self) -> None:
-        shutil.rmtree(self._base, ignore_errors=True)
+        self._widen_permissions(self._base)
+        shutil.rmtree(self._base, onexc=self._log_remove_failure)
+
+    def _widen_permissions(self, base: Path) -> None:
+        """The container runs as our own uid, so a directory it left with an unhelpful mode (for
+        example a deliberate `chmod 000`) is still ours to fix. Done as a pass before `rmtree`, rather
+        than from its `onexc`, because the function `onexc` would hand back for a safe-fd removal is a
+        low-level primitive such as `os.open`, not something a bare `func(path)` retry can drive.
+        Iterative and best-effort: a leftover permission problem must never stop `destroy`, which runs
+        in a `finally`, from letting the worker move on to its next job."""
+        stack = [base]
+        while stack:
+            path = stack.pop()
+            try:
+                if path.is_symlink() or not path.is_dir():
+                    continue
+                os.chmod(path, 0o700)
+                stack.extend(path.iterdir())
+            except OSError:
+                continue
+
+    def _log_remove_failure(self, _func: Any, path: str, exc: BaseException) -> None:
+        log.warning("could not remove %s while destroying workspace %s", path, self._base, exc_info=exc)
 
     # -- git ---------------------------------------------------------------------------------
 
     def changed_paths(self) -> list[str]:
         """Every path that differs from the starting commit, sorted. A rename is reported as the
-        deletion of the old path plus the addition of the new one, so both must be allowed."""
+        deletion of the old path plus the addition of the new one, so both must be allowed.
+
+        Includes paths a `.gitignore` would otherwise hide (`--ignored=matching`): if it did not, an
+        agent could write outside `allowed_paths` and hide the result from the Φ check with a stray
+        ignore rule. `--ignore-submodules=all` and the nested-`.git` scan below are both here so git
+        never recurses into, or lets the index point at, anything but the plain files the agent wrote.
+        """
+        self._refuse_nested_git()
         out = _git(
             [
                 "--git-dir",
@@ -145,6 +186,8 @@ class Workspace:
                 "-z",
                 "--no-renames",
                 "--untracked-files=all",
+                "--ignored=matching",
+                "--ignore-submodules=all",
             ],
             _git_env(()),
             self._git_timeout_s,
@@ -154,10 +197,29 @@ class Workspace:
 
     def diff_from_head(self) -> str:
         """Unified diff of tracked and untracked changes, for the PR gate to show the requester."""
+        self._refuse_nested_git()
         env = _git_env(())
         base = ["--git-dir", str(self._gitdir), "--work-tree", str(self.work)]
         _git([*base, "add", "-N", "--", "."], env, self._git_timeout_s)
-        return _git([*base, "diff", "--no-ext-diff", "--binary", "HEAD"], env, self._git_timeout_s)
+        return _git(
+            [*base, "diff", "--no-ext-diff", "--binary", "--ignore-submodules=all", "HEAD"],
+            env,
+            self._git_timeout_s,
+        )
+
+    def _refuse_nested_git(self) -> None:
+        """A `.git` anywhere inside the checkout, planted by the agent, is refused rather than made
+        safe to look at: git recurses into a gitlink (a nested `.git`, whether or not it is a real
+        submodule) using *that* repository's own config, and a `core.fsmonitor` entry there runs a
+        command on the host the moment `git status`, `add` or `diff` walks over it. The real gitdir
+        for this checkout lives outside `work/`, so a `.git` inside it is never legitimate."""
+        fd = os.open(self.work, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            found = _find_name(fd, ".git")
+        finally:
+            os.close(fd)
+        if found is not None:
+            raise WorkspaceError(f"refusing to run git over the checkout: found {found!r} inside it")
 
     # -- files -------------------------------------------------------------------------------
 
@@ -238,27 +300,67 @@ class Workspace:
             os.close(dirfd)
 
     def _walk(self, fd: int, prefix: PurePosixPath, found: list[str]) -> None:
-        with os.scandir(fd) as it:
-            for entry in sorted(it, key=lambda e: e.name):
+        """Iterative (not recursive): an agent can make a directory chain deep enough to blow the
+        Python call stack, and `list_files` must fail cleanly, not crash the job, over that. The final
+        result is sorted by the caller regardless of the order entries are appended here."""
+        stack = [(fd, prefix)]
+        opened = [fd]
+        try:
+            while stack:
+                cur_fd, cur_prefix = stack.pop()
                 if len(found) >= _MAX_LIST_ENTRIES:
                     return
-                rel = prefix / entry.name
+                with os.scandir(cur_fd) as it:
+                    entries = sorted(it, key=lambda e: e.name)
+                for entry in entries:
+                    if len(found) >= _MAX_LIST_ENTRIES:
+                        return
+                    rel = cur_prefix / entry.name
+                    if entry.is_symlink():
+                        found.append(f"{rel}@")  # listed, never followed
+                    elif entry.is_dir(follow_symlinks=False):
+                        found.append(f"{rel}/")
+                        child = _openat(entry.name, os.O_RDONLY | os.O_DIRECTORY, cur_fd)
+                        opened.append(child)
+                        stack.append((child, rel))
+                    else:
+                        found.append(str(rel))
+        finally:
+            for f in opened[1:]:  # the caller owns and closes the fd it passed in (opened[0])
+                os.close(f)
+
+
+def _find_name(fd: int, name: str) -> str | None:
+    """The relative path of the first entry called `name` anywhere under `fd`, or None. Iterative, for
+    the same reason `_walk` is: an attacker-made directory chain must not be able to overflow the
+    stack. Never follows a symlink, so a symlink cannot be used to point this scan outside the tree."""
+    stack = [(fd, PurePosixPath())]
+    opened: list[int] = []
+    try:
+        while stack:
+            cur_fd, cur_prefix = stack.pop()
+            with os.scandir(cur_fd) as it:
+                entries = list(it)
+            for entry in entries:
+                if entry.name == name:
+                    return str(cur_prefix / entry.name)
                 if entry.is_symlink():
-                    found.append(f"{rel}@")  # listed, never followed
-                elif entry.is_dir(follow_symlinks=False):
-                    found.append(f"{rel}/")
-                    child = _openat(entry.name, os.O_RDONLY | os.O_DIRECTORY, fd)
-                    try:
-                        self._walk(child, rel, found)
-                    finally:
-                        os.close(child)
-                else:
-                    found.append(str(rel))
+                    continue
+                if entry.is_dir(follow_symlinks=False):
+                    child = _openat(entry.name, os.O_RDONLY | os.O_DIRECTORY, cur_fd)
+                    opened.append(child)
+                    stack.append((child, cur_prefix / entry.name))
+        return None
+    finally:
+        for f in opened:
+            os.close(f)
 
 
 def _openat(name: str, flags: int, dir_fd: int, mode: int = 0o644) -> int:
     try:
-        return os.open(name, flags | os.O_NOFOLLOW | os.O_CLOEXEC, mode, dir_fd=dir_fd)
+        # O_NONBLOCK: a FIFO the agent created would otherwise block the open indefinitely, waiting
+        # for a reader or writer that never comes; it has no effect on a regular file or a directory.
+        return os.open(name, flags | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK, mode, dir_fd=dir_fd)
     except OSError as exc:
         if exc.errno in (errno.ELOOP, errno.ENOTDIR):
             raise WorkspaceError(f"{name}: symlinks and non-directories in a path are not followed") from exc

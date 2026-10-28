@@ -63,6 +63,19 @@ def test_scheme_not_in_allowlist_is_refused(tmp_path: Path, repo_url: str):
         Workspace.clone(repo_url, "main", tmp_path / "ws", GitLimits(("https",), 30))
 
 
+def test_destroy_removes_a_directory_the_container_left_unwritable(tmp_path: Path, repo_url: str):
+    """The container runs as our own uid, so a directory it left with an unhelpful mode (for example a
+    deliberate `chmod 000`) must not make `destroy` silently leave part of the workspace on disk."""
+    ws = Workspace.clone(repo_url, "main", tmp_path / "ws", LOCAL_GIT)
+    base = ws.work.parent
+    locked = ws.work / "locked"
+    locked.mkdir()
+    (locked / "inside").write_text("x")
+    locked.chmod(0o000)
+    ws.destroy()
+    assert not base.exists()
+
+
 def test_changed_paths_covers_modified_added_deleted_sorted(sandbox: ProcessSandbox):
     ws = sandbox.workspace
     ws.write_file("payments/refund.py", b"changed\n")
@@ -75,13 +88,18 @@ def test_changed_paths_empty_when_untouched(sandbox: ProcessSandbox):
     assert sandbox.workspace.changed_paths() == []
 
 
-def test_changed_paths_respects_gitignore(sandbox: ProcessSandbox):
-    sandbox.workspace.write_file("__pycache__/x.pyc", b"\x00")
-    assert sandbox.workspace.changed_paths() == []
+def test_changed_paths_includes_gitignored_files(sandbox: ProcessSandbox):
+    """A `.gitignore` must not be a way to hide a real change from the `allowed_paths` check, so an
+    ignored path still counts as changed."""
+    sandbox.workspace.write_file(".gitignore", b"payments/\n")
+    sandbox.workspace.write_file("payments/refund.py", b"changed\n")
+    assert "payments/refund.py" in sandbox.workspace.changed_paths()
 
 
-def test_planted_git_file_and_config_are_never_read(sandbox: ProcessSandbox, tmp_path: Path):
-    """The container could write a `.git` that points at a hostile git dir with a code-running config."""
+def test_planted_git_file_is_refused_not_silently_worked_around(sandbox: ProcessSandbox, tmp_path: Path):
+    """The container could write a `.git` that points at a hostile git dir with a code-running config.
+    Refusing the whole operation is simpler to get right than trusting that every git invocation that
+    might ever walk the tree carries the flag that happens to defeat this particular shape of attack."""
     ws = sandbox.workspace
     hostile = tmp_path / "hostile-gitdir"
     hostile.mkdir()
@@ -89,7 +107,23 @@ def test_planted_git_file_and_config_are_never_read(sandbox: ProcessSandbox, tmp
     (hostile / "config").write_text(f"[core]\n\tfsmonitor = touch {marker}\n")
     (ws.work / ".git").write_text(f"gitdir: {hostile}\n")
     ws.write_file("payments/refund.py", b"changed\n")
-    assert ws.changed_paths()[-1] == "payments/refund.py"
+    with pytest.raises(WorkspaceError, match=r"\.git"):
+        ws.changed_paths()
+    with pytest.raises(WorkspaceError, match=r"\.git"):
+        ws.diff_from_head()
+    assert not marker.exists()
+
+
+def test_nested_git_directory_is_refused(sandbox: ProcessSandbox, tmp_path: Path):
+    """The same attack, planted as a real nested repository (what `git status`/`add` would recurse
+    into as a gitlink) rather than a `.git` file at the checkout root."""
+    ws = sandbox.workspace
+    marker = tmp_path / "pwned"
+    nested = ws.work / "vendor" / "lib" / ".git"
+    nested.mkdir(parents=True)
+    (nested / "config").write_text(f"[core]\n\tfsmonitor = touch {marker}\n")
+    with pytest.raises(WorkspaceError, match=r"\.git"):
+        ws.changed_paths()
     assert not marker.exists()
 
 
@@ -156,3 +190,28 @@ def test_diff_includes_new_files(sandbox: ProcessSandbox):
     diff = sandbox.workspace.diff_from_head()
     assert "payments/new.py" in diff
     assert "return a - f" in diff
+
+
+def test_list_files_does_not_crash_on_a_very_deep_directory_tree(sandbox: ProcessSandbox):
+    """A directory chain deep enough to overflow Python's call stack must fail cleanly, not crash the
+    job with a RecursionError. Built one `mkdir`/`open` at a time, dir_fd-relative, so no single path
+    string ever gets long enough to hit a separate, unrelated length limit."""
+    depth = 2000
+    fd = os.open(sandbox.workspace.work, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for _ in range(depth):
+            os.mkdir("d", dir_fd=fd)
+            nxt = os.open("d", os.O_RDONLY | os.O_DIRECTORY, dir_fd=fd)
+            os.close(fd)
+            fd = nxt
+    finally:
+        os.close(fd)
+    sandbox.workspace.list_files(".")  # must return, not raise RecursionError
+
+
+def test_opening_a_fifo_does_not_hang(sandbox: ProcessSandbox):
+    """An agent-made named pipe must fail the open fast, not block the worker waiting for a reader or
+    writer that will never come."""
+    os.mkfifo(sandbox.workspace.work / "pipe")
+    with pytest.raises(WorkspaceError, match="not a regular file"):
+        sandbox.workspace.read_file("pipe", 10)

@@ -12,6 +12,7 @@ from typing import Any
 
 from .config import ConfigError, agent_signing_key
 from .harness import AgentSpec
+from .meter import PriceTable
 
 _ADDRESS = re.compile(r"^0x[0-9a-fA-F]{40}$")
 
@@ -42,3 +43,19 @@ def load_agent_spec(
         runtime_key_address=runtime_key,
         signing_key=agent_signing_key(agent_id, environ).get_secret_value(),
     )
+
+
+def validate_agents_are_priced(agents_file: Path, agents_config: Path, prices: PriceTable) -> None:
+    """Every agent with a model in `agents_config` must have that model in the price table, checked once
+    at start-up. Otherwise a bad deploy is discovered only after a job has already paid the provider for
+    a call whose receipt could never carry a real cost (`PriceTable.price` would raise mid-run)."""
+    try:
+        registry: list[dict[str, Any]] = json.loads(agents_file.read_text())["agents"]
+        models: dict[str, Any] = tomllib.loads(agents_config.read_text())["agents"]
+    except (OSError, KeyError, ValueError) as exc:
+        raise ConfigError(f"cannot read agent configuration: {exc}") from exc
+    for entry in registry:
+        cfg: dict[str, Any] | None = models.get(str(entry.get("name")))
+        model = cfg.get("model") if cfg else None
+        if model:  # a missing model/system_prompt here is load_agent_spec's own clear error to raise
+            prices.price(str(model))

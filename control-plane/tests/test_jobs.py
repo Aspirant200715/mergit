@@ -138,13 +138,36 @@ def test_a_finished_job_is_not_reported_twice(dsn: str, db: Any):
     assert db.execute("SELECT phi_holds FROM jobs").fetchone()["phi_holds"] is True
 
 
-def test_requeue_only_touches_this_workers_running_jobs(dsn: str, db: Any):
+def test_fail_own_running_only_touches_this_workers_jobs_and_never_requeues_them(dsn: str, db: Any):
+    """A crashed and restarted worker must not silently resume the same task_id: that would pay the
+    model twice and the store would refuse a second bundle for one task. The job ends `error` instead,
+    for plan task O6 to redispatch as a new attempt with its own task_id."""
     seed(db, n=2)
     PgJobStore.connect(dsn, "w1").claim()
     PgJobStore.connect(dsn, "w2").claim()
-    assert PgJobStore.connect(dsn, "w1").requeue_own_running() == 1
+    assert PgJobStore.connect(dsn, "w1").fail_own_running() == 1
     rows = {r["claimed_by"]: r["status"] for r in db.execute("SELECT claimed_by, status FROM jobs")}
-    assert rows == {None: "queued", "w2": "running"}
+    assert rows == {None: "error", "w2": "running"}
+
+
+def test_reclaim_stale_touches_any_workers_claim_past_its_lease(dsn: str, db: Any):
+    seed(db, n=2)
+    PgJobStore.connect(dsn, "w1").claim()
+    PgJobStore.connect(dsn, "w2").claim()
+    db.execute("UPDATE jobs SET claimed_at = now() - interval '2 hours' WHERE claimed_by = 'w1'")
+    assert PgJobStore.connect(dsn, "w3").reclaim_stale(lease_s=3600) == 1
+    rows = {r["claimed_by"]: r["status"] for r in db.execute("SELECT claimed_by, status FROM jobs")}
+    assert rows == {None: "error", "w2": "running"}
+
+
+def test_claim_reconnects_after_the_connection_is_lost(dsn: str, db: Any):
+    """A worker runs for a long time; losing the one connection it holds (an idle timeout, a Postgres
+    restart) must not be fatal to it."""
+    seed(db)
+    store = PgJobStore.connect(dsn, "w1")
+    store._conn.close()  # simulate the connection dying under it, between jobs
+    job = store.claim()
+    assert job is not None
 
 
 def test_missing_plan_or_task_row_fails_the_job_instead_of_hanging(dsn: str, db: Any):

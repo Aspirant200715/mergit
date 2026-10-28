@@ -14,12 +14,13 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any, Protocol
 
 import mergit_receipt
 
 from .llm import LLM, LLMError, LLMResult
-from .meter import Cost, PriceTable, tool_cost
+from .meter import Cost, Price, PriceTable, tool_cost
 from .models import Job, RunOutcome, cap_output
 from .phi import PhiRun, run_phi
 from .sandbox import SandboxPort
@@ -97,6 +98,23 @@ class _Spent:
         self.usd_micros = 0
 
 
+_MILLION = Decimal(1_000_000)
+
+
+def _affordable_max_tokens(remaining_usd_micros: int, price: Price, ceiling: int) -> int:
+    """The largest `max_tokens` whose worst case (every one of them billed as output) still fits the
+    remaining budget, capped at `ceiling`. Bounding only the output side is a deliberate
+    simplification: the next call's input tokens are set by the conversation so far, which grows far
+    more slowly than one call's `max_tokens`, so this is a cheap, effective guard on the dominant risk
+    without needing to estimate input tokens ahead of time. It does not make overspend impossible, only
+    unlikely and small, which is the right trade for a receipt that is signed either way."""
+    if price.output_per_mtok <= 0:
+        return ceiling
+    remaining_usd = Decimal(remaining_usd_micros) / _MILLION
+    affordable = int((remaining_usd / price.output_per_mtok) * _MILLION)
+    return max(0, min(ceiling, affordable))
+
+
 def _check_ids(job: Job) -> None:
     """Re-derive the ids through the binding. A mismatched job row must not produce a receipt that the
     chain gateway would reject or, worse, attach to another task."""
@@ -171,10 +189,16 @@ def _agent_loop(
     deadline = time.monotonic() + cfg.job_deadline_s
 
     for _ in range(cfg.max_steps):
-        if spent.usd_micros >= job.budget_usdc_units:
+        remaining = job.budget_usdc_units - spent.usd_micros
+        if remaining <= 0:
             return "cost_budget"
         if time.monotonic() >= deadline:
             return "time_budget"
+        max_tokens = _affordable_max_tokens(remaining, prices.price(agent.model), cfg.model_max_tokens)
+        if max_tokens < 1:
+            # The call itself was never made, so nothing here was overspent; the budget just has no
+            # room left for one more output token even at the smallest size the API will accept.
+            return "cost_budget"
         started = time.monotonic()
         try:
             result = llm.complete(
@@ -182,7 +206,7 @@ def _agent_loop(
                 TOOL_SCHEMAS,
                 agent.model,
                 system=agent.system_prompt,
-                max_tokens=cfg.model_max_tokens,
+                max_tokens=max_tokens,
             )
         except LLMError as exc:
             log.warning("model call failed for %s: %s", job.task_id, exc)
@@ -245,12 +269,17 @@ def _record_model_call(
 def _record_phi_command(
     job: Job, phi_run: PhiRun, builder: mergit_receipt.ReceiptBuilder, cfg: HarnessConfig
 ) -> None:
-    """The Φ command is a step of its own, in the evidence set next to the `phi_eval` step."""
+    """The Φ command is a step of its own, in the evidence set next to the `phi_eval` step. Its output
+    is exactly the bytes `stdout_digest` hashes (stdout alone, capped the same way), so an auditor can
+    match the digest to a stored blob. stderr is not part of the receipt; it is only logged locally, for
+    an operator, since mixing it into the step's output would make that digest match nothing."""
     cmd = phi_run.command
+    if cmd.stderr:
+        log.info("phi stderr for %s: %s", job.task_id, cmd.stderr[:2000].decode("utf-8", "replace"))
     seq = builder.add_step(
         "command",
         json.dumps({"argv": job.phi["command"], "workdir": job.phi["workdir"]}, sort_keys=True).encode(),
-        cap_output(phi_run.command_output, cfg.max_output_bytes),
+        cap_output(cmd.stdout, cfg.max_output_bytes),
         phi_run.result["exit_code"],
         tool_cost(cmd.wall_ms).to_json(),
     )

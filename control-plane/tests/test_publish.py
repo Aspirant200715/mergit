@@ -103,7 +103,8 @@ def test_tokens_and_idempotency_key_are_sent(sealed: mergit_receipt.SealedBundle
     gw = respx.post(f"{GATEWAY}/v0/events").mock(return_value=httpx.Response(200))
     publisher(Clock()).publish(sealed)
     assert store.calls[0].request.headers["authorization"] == "Bearer store-secret"
-    assert store.calls[0].request.content == sealed.bundle_json.encode()
+    uploaded = json.loads(store.calls[0].request.content)
+    assert uploaded["receipt"] == json.loads(sealed.bundle_json)["receipt"]
     req = gw.calls[0].request
     assert req.headers["authorization"] == "Bearer events-secret"
     assert req.headers["idempotency-key"] == json.loads(req.content)["event_id"]
@@ -116,6 +117,24 @@ def test_event_not_sent_when_the_store_refuses(sealed: mergit_receipt.SealedBund
     with pytest.raises(PublishError, match="store refused"):
         publisher(Clock()).publish(sealed)
     assert not gw.called
+
+
+@respx.mock
+def test_trajectory_blobs_are_uploaded_with_the_bundle(sealed: mergit_receipt.SealedBundle):
+    """`bundle_json` alone carries only the evidence blobs; the store must also get every step's, from
+    `trajectory_blobs_json`, or a bonded challenge would have nothing to compel a disclosure of."""
+    store = respx.put(f"{STORE}/v0/bundles").mock(return_value=httpx.Response(201))
+    respx.post(f"{GATEWAY}/v0/events").mock(return_value=httpx.Response(200))
+    publisher(Clock()).publish(sealed)
+
+    uploaded = json.loads(store.calls[0].request.content)
+    bundle = json.loads(sealed.bundle_json)
+    trajectory = json.loads(sealed.trajectory_blobs_json)
+    assert set(trajectory) - set(bundle["blobs"])  # the trajectory really does add non-evidence blobs
+    assert set(bundle["blobs"]) <= set(uploaded["blobs"])
+    assert set(trajectory) <= set(uploaded["blobs"])
+    for digest, data in trajectory.items():
+        assert uploaded["blobs"][digest] == data
 
 
 @respx.mock

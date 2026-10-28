@@ -71,12 +71,19 @@ class PriceTable:
         except (OSError, KeyError, TypeError, ValueError) as exc:
             raise ConfigError(f"cannot read price table {path}: {exc}") from exc
 
-    def model_call_cost(self, model: str, input_tokens: int, output_tokens: int, wall_ms: int) -> Cost:
-        """Cost of one model call in micro-USD, rounded half up. An unpriced model is an error:
-        a receipt must not carry a guessed cost."""
+    def price(self, model: str) -> Price:
+        """The list price for a model, or `ConfigError` if it has none. Checking this before a job is
+        claimed, or before a call, is free and catches a bad deploy before it pays for a call whose
+        receipt could never carry a real cost."""
         price = self._prices.get(model)
         if price is None:
             raise ConfigError(f"no price for model {model!r} in the price table")
+        return price
+
+    def model_call_cost(self, model: str, input_tokens: int, output_tokens: int, wall_ms: int) -> Cost:
+        """Cost of one model call in micro-USD, rounded half up. An unpriced model is an error:
+        a receipt must not carry a guessed cost."""
+        price = self.price(model)
         usd = (
             Decimal(input_tokens) * price.input_per_mtok + Decimal(output_tokens) * price.output_per_mtok
         ) / _MILLION

@@ -164,3 +164,40 @@ def test_fake_agent_fixes_fixture_and_phi_holds(repo_url: str, cfg: SandboxConfi
         sandbox.destroy()
     assert outcome.holds is True
     assert publisher.sealed[0].root.startswith("0x")
+
+
+def test_agent_cannot_use_a_planted_submodule_to_run_code_on_the_host(
+    repo_url: str, cfg: SandboxConfig, tmp_path: Path
+):
+    """The real exploit: a hostile agent plants a nested `.git` with a code-running `core.fsmonitor`
+    through `run_command`, exactly as a real model could. The host must never execute anything from it,
+    and Φ must fail safely (an inconclusive result) rather than silently pass."""
+    sandbox = Sandbox.create(repo_url, "main", cfg)
+    publisher = RecordingPublisher(sealed=[])
+    marker = tmp_path / "pwned"
+    job = make_job(repo_url, phi=phi(command=["true"]))
+    plant = (
+        "run_command",
+        {
+            "argv": [
+                "sh",
+                "-c",
+                "mkdir -p vendor/lib && git init -q vendor/lib && "
+                f"git -C vendor/lib config core.fsmonitor 'touch {marker}'",
+            ]
+        },
+    )
+    try:
+        outcome = run_task(
+            job,
+            make_agent(),
+            sandbox,
+            ScriptedLLM([turn(plant), turn(("finish", {}))]),
+            make_prices(),
+            publisher,
+            make_harness_config(),
+        )
+    finally:
+        sandbox.destroy()
+    assert not marker.exists()
+    assert outcome.holds is None  # the checkout was not safe to inspect; a person decides, not a guess

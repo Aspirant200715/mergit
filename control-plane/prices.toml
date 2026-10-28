@@ -1,8 +1,11 @@
 # List prices in USD per million tokens, as published by the provider. These are not measurements:
 # the receipt meter multiplies provider-reported token counts by these numbers, nothing more.
-# Last checked against the provider's price list on 2026-10-27. Update here, never in code.
+# Last checked against the provider's price list on 2026-10-28. Update here, never in code.
+#
+# "claude-sonnet-5-5" (checked 2026-10-27) was not a real model id; there is no 5.5 variant of
+# Sonnet, only of Opus. Fixed to "claude-sonnet-5" here and in agents.toml.
 
-[models."claude-sonnet-5-5"]
+[models."claude-sonnet-5"]
 input_per_mtok = 2.00
 output_per_mtok = 10.00
 

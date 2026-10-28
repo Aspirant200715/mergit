@@ -52,10 +52,15 @@ class WorkerConfig(BaseSettings):
     # Under the 1800 s dispatch deadline, leaving time to run Φ, seal and publish.
     job_deadline_s: float = Field(default=1500.0, gt=0)
     worker_id: str | None = None  # defaults to the hostname; one process per id
-    model_max_tokens: int = Field(default=8192, ge=256)
+    # Opus 5.5's thinking tokens count against this; 8192 made a truncated turn too likely.
+    model_max_tokens: int = Field(default=16_000, ge=256)
     poll_interval_s: float = Field(default=2.0, gt=0)
     http_timeout_s: float = Field(default=30.0, gt=0)
     publish_retry_window_s: float = Field(default=600.0, gt=0)
+    # A `running` job claimed longer ago than this, by any worker id, is presumed abandoned (a crashed
+    # or killed container) and reclaimed at start-up. Comfortably above one job's own worst case:
+    # job_deadline_s, plus a full Φ timeout, plus publish_retry_window_s.
+    job_lease_s: float = Field(default=3600.0, gt=0)
 
     @field_validator("receipt_registry")
     @classmethod

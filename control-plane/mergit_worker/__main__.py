@@ -7,6 +7,7 @@ import signal
 import socket
 import threading
 
+from .agents import validate_agents_are_priced
 from .config import ConfigError, WorkerConfig, load_config
 from .harness import HarnessConfig
 from .jobs import PgJobStore
@@ -36,11 +37,13 @@ def build_worker(cfg: WorkerConfig, worker_id: str) -> tuple[Worker, PgJobStore]
     def make_sandbox(job: Job) -> Sandbox:
         return Sandbox.create(job.repo_url, job.ref, sandbox_cfg)
 
+    prices = PriceTable.load(cfg.prices_file)
+    validate_agents_are_priced(cfg.agents_file, cfg.agents_config, prices)
     store = PgJobStore.connect(cfg.database_url.get_secret_value(), worker_id)
     deps = WorkerDeps(
         store=store,
         llm=AnthropicLLM(timeout_s=cfg.http_timeout_s * 20),
-        prices=PriceTable.load(cfg.prices_file),
+        prices=prices,
         publisher=ReceiptPublisher(
             store_url=cfg.store_url,
             gateway_url=cfg.gateway_url,
@@ -81,7 +84,11 @@ def main() -> int:
 
     worker_id = cfg.worker_id or socket.gethostname()
     worker, store = build_worker(cfg, worker_id)
-    log.info("requeued %d jobs left by a previous run", store.requeue_own_running())
+    log.info("failed %d jobs this worker left running before a restart", store.fail_own_running())
+    log.info(
+        "reclaimed %d jobs left running past their lease by any worker",
+        store.reclaim_stale(cfg.job_lease_s),
+    )
     log.info("removed %d stale sandbox containers", reap_stale(worker_id))
 
     stop = threading.Event()

@@ -7,6 +7,7 @@ tokens, `Idempotency-Key: <event_id>`, retry on 5xx and timeouts with backoff fo
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 import uuid
@@ -61,7 +62,7 @@ class ReceiptPublisher:
             "store upload",
             lambda: self._http.put(
                 f"{self._store_url}/v0/bundles",
-                content=sealed.bundle_json.encode(),
+                content=_bundle_with_trajectory(sealed),
                 headers={
                     "Authorization": f"Bearer {self._store_token}",
                     "Content-Type": "application/json",
@@ -112,6 +113,16 @@ class ReceiptPublisher:
             log.warning("%s failed (%s), retrying in %.0fs", what, reason, delay)
             self._sleep(delay)
             delay = min(delay * 2, _BACKOFF_MAX_S)
+
+
+def _bundle_with_trajectory(sealed: mergit_receipt.SealedBundle) -> bytes:
+    """`bundle_json` carries only the evidence blobs; `trajectory_blobs_json` carries every step's,
+    kept by the binding "for a bonded challenge" (its own doc comment). The store is meant to hold the
+    full body, so the trajectory belongs in the same PUT as the evidence, not nowhere."""
+    bundle: dict[str, Any] = json.loads(sealed.bundle_json)
+    trajectory: dict[str, str] = json.loads(sealed.trajectory_blobs_json)
+    bundle["blobs"].update(trajectory)
+    return json.dumps(bundle).encode()
 
 
 def receipt_sealed_event(sealed: mergit_receipt.SealedBundle) -> dict[str, Any]:

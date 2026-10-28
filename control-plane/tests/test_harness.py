@@ -141,6 +141,43 @@ def test_budget_exhausted_still_seals_with_phi(sandbox, publisher, repo_url):
     assert outcome.holds is True  # the work it did before running out still counts
 
 
+class _RecordingLLM(ScriptedLLM):
+    """A `ScriptedLLM` that also remembers the `max_tokens` it was asked for on every call."""
+
+    def __init__(self, turns: list[Any]) -> None:
+        super().__init__(turns)
+        self.requested_max_tokens: list[int] = []
+
+    def complete(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+        model: str,
+        *,
+        system: str | None = None,
+        max_tokens: int = 8192,
+    ) -> Any:
+        self.requested_max_tokens.append(max_tokens)
+        return super().complete(messages, tools, model, system=system, max_tokens=max_tokens)
+
+
+def test_a_tight_budget_clamps_the_requested_max_tokens(sandbox, publisher, repo_url):
+    """A call whose `max_tokens` is left at the configured ceiling could, in the worst case, cost more
+    than a small remaining budget allows. The harness must ask for less, not find out after the fact."""
+    job = make_job(repo_url, budget_usdc_units=1_000)  # price is $10/mtok output: 100 tokens' worth
+    llm = _RecordingLLM([turn(("finish", {}))])
+    run_task(job, make_agent(), sandbox, llm, make_prices(), publisher, make_harness_config())
+    assert llm.requested_max_tokens == [100]  # well under the 1024 ceiling `make_harness_config` sets
+
+
+def test_budget_too_small_for_one_token_stops_before_calling(sandbox, publisher, repo_url):
+    job = make_job(repo_url, budget_usdc_units=1)  # a fraction of a cent: cannot afford one output token
+    llm = _RecordingLLM([turn(("finish", {}))])
+    outcome = run_task(job, make_agent(), sandbox, llm, make_prices(), publisher, make_harness_config())
+    assert llm.calls == 0
+    assert outcome.notes == ["cost_budget"]
+
+
 def test_step_budget_stops_the_loop(sandbox, publisher, repo_url):
     spin = [turn(("list_files", {})) for _ in range(5)]
     outcome, receipt, llm = run(sandbox, publisher, spin, repo_url, max_steps=3)

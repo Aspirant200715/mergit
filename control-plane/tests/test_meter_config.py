@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_repo_price_table_loads_and_prices_a_call():
     table = PriceTable.load(ROOT / "prices.toml")
-    cost = table.model_call_cost("claude-sonnet-5-5", 1_000_000, 1_000_000, 5)
+    cost = table.model_call_cost("claude-sonnet-5", 1_000_000, 1_000_000, 5)
     assert cost.usd_micros == 12_000_000  # $2 in + $10 out per Mtok
 
 
