@@ -26,6 +26,7 @@ model loop against a fresh sandbox, then:
 | `publish.py` | Bundle upload then event, bearer tokens, `Idempotency-Key`, backoff for 10 minutes |
 | `jobs.py` | All worker SQL |
 | `llm.py` | `LLM` protocol and the Anthropic adapter |
+| `progress.py` | `ProgressReporter`: reports a step to the control plane's live stream (O7) the instant it is recorded |
 
 ### What the agent cannot do
 
@@ -48,6 +49,15 @@ Only the checkout is mounted. Test runners are told not to write caches or bytec
 If the checkout is refused (the nested-`.git` case above), Φ is inconclusive (`holds = NULL`) the same way a
 timed-out command is: not a guess at whether the real change would have passed.
 
+### Live step reporting (plan task O7)
+
+Every agent-loop step (not the Φ `command` step, not `phi_eval`) is reported to the control plane's
+`POST /v0/internal/progress` the instant `harness.py`'s recorder gives it a `seq`, so a viewer's SSE stream
+shows it with no polling delay. This is purely observational: `ProgressReporter.report` never raises, a
+refusal or a transport error is only logged, and nothing about the task, the receipt or the job outcome
+depends on it. `NullProgressReporter` (the default) sends nothing, for a worker started without
+`CONTROL_PLANE_URL`/`WORKER_TOKEN`.
+
 ### Configuration
 
 Typed, from the environment (`mergit_worker/config.py`). Required: `DATABASE_URL`, `GATEWAY_URL`, `STORE_URL`,
@@ -58,6 +68,8 @@ plus the model provider key (`ANTHROPIC_API_KEY`). Everything else has a default
 (16000; Opus 5.5's thinking tokens count against it, so this is also a per-call ceiling the harness clamps
 *down* from when the remaining budget cannot cover it), `JOB_LEASE_S` (3600; a `running` job claimed longer
 ago than this, by any worker, is reclaimed at start-up as `error` rather than left stuck forever).
+`CONTROL_PLANE_URL` and `WORKER_TOKEN` are optional and only meaningful together (see above); with only one
+set, the worker logs a warning at start and runs with live reporting off, same as with neither set.
 
 Model and system prompt per agent: `agents.toml`, keyed by `name` in `deploy/agents.example.json`.
 Prices: `prices.toml`.

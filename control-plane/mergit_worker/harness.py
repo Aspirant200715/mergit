@@ -5,6 +5,11 @@ Order of one task, fixed by spec/receipt-v0.md and plan task O5:
   marked evidence) -> `seal_with_phi` appends the `phi_eval` step last -> upload the bundle ->
   send `receipt.sealed`. The caller then reports `holds` to the control plane. The agent never decides
   that a task is done: `finish` only ends its turn.
+
+Every step the agent loop records is also reported live to the control plane's run API (plan task O7,
+`POST /v0/internal/progress`) through `progress.py`, which it gets as `ProgressReporter`. This is purely
+for a viewer watching the run; a report that fails or is never configured changes nothing about the task,
+the receipt or the job outcome.
 """
 
 from __future__ import annotations
@@ -23,6 +28,7 @@ from .llm import LLM, LLMError, LLMResult
 from .meter import Cost, Price, PriceTable, tool_cost
 from .models import Job, RunOutcome, cap_output
 from .phi import PhiRun, run_phi
+from .progress import NullProgressReporter, ProgressReporter
 from .sandbox import SandboxPort
 from .tools import TOOL_SCHEMAS, Recorder, ToolBox, ToolLimits
 
@@ -69,11 +75,12 @@ def run_task(
     prices: PriceTable,
     publisher: Publisher,
     cfg: HarnessConfig,
+    progress: ProgressReporter | None = None,
 ) -> RunOutcome:
     _check_ids(job)
     builder = mergit_receipt.ReceiptBuilder(_header_json(job, agent, cfg))
     spent = _Spent()
-    record = _recorder(builder, spent)
+    record = _recorder(builder, spent, job.task_id, progress or NullProgressReporter())
     outcome_note = _agent_loop(job, agent, sandbox, llm, prices, record, spent, cfg)
 
     phi_run = run_phi(sandbox, job.phi, cfg.max_output_bytes, cfg.max_hash_bytes)
@@ -149,12 +156,15 @@ def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
-def _recorder(builder: mergit_receipt.ReceiptBuilder, spent: _Spent) -> Recorder:
+def _recorder(
+    builder: mergit_receipt.ReceiptBuilder, spent: _Spent, task_id: str, progress: ProgressReporter
+) -> Recorder:
     def record(step_type: str, inp: bytes, out: bytes, exit_status: int | None, cost: Cost) -> int:
         if step_type == "phi_eval":  # the binding refuses too; fail before reaching it
             raise PermissionError("phi_eval is appended only by sealing")
         seq = builder.add_step(step_type, inp, out, exit_status, cost.to_json())
         spent.usd_micros += cost.usd_micros
+        progress.report(task_id, seq, step_type, cost)
         return seq
 
     return record

@@ -60,6 +60,36 @@ def test_fake_agent_fixes_repo_and_phi_holds(sandbox, publisher, repo_url):
     assert verify(publisher)["status"] == "unattested_valid"
 
 
+class _RecordingProgress:
+    def __init__(self) -> None:
+        self.reports: list[tuple[str, int, str, int]] = []
+
+    def report(self, task_id: str, seq: int, step_type: str, cost: Any) -> None:
+        self.reports.append((task_id, seq, step_type, cost.usd_micros))
+
+
+def test_steps_are_reported_live_as_they_are_recorded(sandbox, publisher, repo_url):
+    """Every agent-loop step goes to the progress reporter the instant it is recorded, with the same
+    seq the receipt gives it; the Φ command and phi_eval steps, added after the loop ends, are not
+    reported this way (the job's own outcome covers them)."""
+    progress = _RecordingProgress()
+    job = make_job(repo_url)
+    outcome = run_task(
+        job,
+        make_agent(),
+        sandbox,
+        ScriptedLLM([turn(FIX), turn(("finish", {}))]),
+        make_prices(),
+        publisher,
+        make_harness_config(),
+        progress,
+    )
+    assert outcome.holds is True
+    assert [r[0] for r in progress.reports] == [job.task_id] * len(progress.reports)
+    assert [r[1] for r in progress.reports] == [1, 2, 3, 4]
+    assert [r[2] for r in progress.reports] == ["model_call", "artifact_write", "model_call", "tool_call"]
+
+
 def test_phi_runs_after_agent_stops_and_is_last_step(sandbox, publisher, repo_url):
     _, receipt, _ = run(sandbox, publisher, [turn(FIX), turn(("finish", {}))], repo_url)
     types = step_types(receipt)

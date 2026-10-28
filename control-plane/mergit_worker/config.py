@@ -62,6 +62,12 @@ class WorkerConfig(BaseSettings):
     # job_deadline_s, plus a full Φ timeout, plus publish_retry_window_s.
     job_lease_s: float = Field(default=3600.0, gt=0)
 
+    # Live step reporting to the control plane's run API (plan task O7), purely for a viewer watching the
+    # run. Both optional and both required together: without them the worker still does everything else,
+    # it just reports no steps live.
+    control_plane_url: str | None = None
+    worker_token: SecretStr | None = None
+
     @field_validator("receipt_registry")
     @classmethod
     def _registry_is_address(cls, v: str) -> str:

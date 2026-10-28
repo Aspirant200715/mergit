@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .agents import load_agent_spec
 from .config import WorkerConfig
@@ -14,6 +14,7 @@ from .jobs import JobStore
 from .llm import LLM
 from .meter import PriceTable
 from .models import Job
+from .progress import NullProgressReporter, ProgressReporter
 from .sandbox import SandboxPort
 
 log = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ class WorkerDeps:
     publisher: Publisher
     make_sandbox: SandboxFactory
     harness: HarnessConfig
+    progress: ProgressReporter = field(default_factory=NullProgressReporter)
 
 
 class Worker:
@@ -66,6 +68,7 @@ class Worker:
                 self._deps.prices,
                 self._deps.publisher,
                 self._deps.harness,
+                self._deps.progress,
             )
         finally:
             sandbox.destroy()

@@ -14,11 +14,25 @@ from .jobs import PgJobStore
 from .llm import AnthropicLLM
 from .meter import PriceTable
 from .models import Job
+from .progress import HttpProgressReporter, NullProgressReporter, ProgressReporter
 from .publish import ReceiptPublisher
 from .sandbox import Sandbox, SandboxConfig, reap_stale
 from .tools import ToolLimits
 from .worker import Worker, WorkerDeps
 from .workspace import GitLimits
+
+
+def build_progress_reporter(cfg: WorkerConfig) -> ProgressReporter:
+    """Live step reporting needs both settings; with only one set, that is a misconfiguration worth
+    logging, not a silent partial feature."""
+    if cfg.control_plane_url and cfg.worker_token:
+        return HttpProgressReporter(cfg.control_plane_url, cfg.worker_token.get_secret_value())
+    if cfg.control_plane_url or cfg.worker_token:
+        logging.getLogger("mergit_worker").warning(
+            "CONTROL_PLANE_URL and WORKER_TOKEN must both be set for live step reporting; only one is, "
+            "so it stays off"
+        )
+    return NullProgressReporter()
 
 
 def build_worker(cfg: WorkerConfig, worker_id: str) -> tuple[Worker, PgJobStore]:
@@ -53,6 +67,7 @@ def build_worker(cfg: WorkerConfig, worker_id: str) -> tuple[Worker, PgJobStore]
             retry_window_s=cfg.publish_retry_window_s,
         ),
         make_sandbox=make_sandbox,
+        progress=build_progress_reporter(cfg),
         harness=HarnessConfig(
             chain_id=cfg.chain_id,
             registry=cfg.receipt_registry,
