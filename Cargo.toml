@@ -42,7 +42,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tempfile = "3"
 http-body-util = "0.1"
-alloy = { version = "2", default-features = false, features = ["std", "contract", "provider-http", "reqwest", "signer-local", "sol-types", "json-abi", "rpc-types"] }
+alloy = { version = "2", default-features = false, features = ["std", "contract", "provider-http", "reqwest", "reqwest-rustls-tls", "signer-local", "sol-types", "json-abi", "rpc-types"] }
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "macros", "migrate", "uuid", "chrono", "json"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

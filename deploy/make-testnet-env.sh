@@ -18,7 +18,9 @@ umask 077
   echo "VALIDATOR_KEY=$VALIDATOR_KEY"
   echo "TREASURY_KEY=$TREASURY_KEY"
   for t in EVENTS_TOKEN AUDIT_TOKEN STORE_WRITE_TOKEN CHAIN_EVENTS_TOKEN WORKER_TOKEN; do
-    echo "$t=$(openssl rand -hex 32)"
+    tok=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
+    [ ${#tok} -eq 64 ] || { echo "could not generate $t" >&2; exit 1; }
+    echo "$t=$tok"
   done
 } > secrets/testnet.env
 echo "wrote deploy/secrets/testnet.env: RPC_URL GATEWAY_KEY VALIDATOR_KEY TREASURY_KEY EVENTS_TOKEN AUDIT_TOKEN STORE_WRITE_TOKEN CHAIN_EVENTS_TOKEN WORKER_TOKEN"

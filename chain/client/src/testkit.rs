@@ -100,7 +100,9 @@ impl Chain {
                 .env("TREASURY_ADDR", keys.treasury.address().to_string())
                 .env("ADJUDICATOR_ADDR", keys.adjudicator.address().to_string())
                 .env("DEPLOYMENT_NAME", &name)
-                .env_remove("USDC")
+                // Zero, not unset: forge loads mergit-contracts/.env (a Base Sepolia USDC) for any variable that is
+                // unset, and an Anvil deploy must get the mock. A variable that is set is never overridden.
+                .env("USDC", "0x0000000000000000000000000000000000000000")
                 .output()
                 .expect("forge must be on PATH");
             assert!(
