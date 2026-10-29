@@ -56,6 +56,9 @@ services:
       # The orchestration API; on the same machine it is published on the host at 8000.
       ORCHESTRATOR_URL: http://host.docker.internal:8000
       CONFIRMATIONS: "2"
+      # Alchemy's free tier allows getLogs over at most 10 blocks. START_BLOCK (optional, in testnet.env) skips the
+      # empty history before the first use; without it the gateway reads from the deployment's deploy block.
+      LOG_RANGE: "10"
       GATEWAY_ADDR: "0.0.0.0:8082"
     ports: ["8082:8082"]
     depends_on:

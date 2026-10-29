@@ -4,6 +4,7 @@
 mod common;
 
 use alloy::primitives::U256;
+use alloy::providers::Provider;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use common::*;
@@ -76,6 +77,49 @@ async fn sealed_receipt_is_committed_on_chain(pool: PgPool) {
         )
         .await,
         StatusCode::OK
+    );
+}
+
+/// A hosted RPC caps getLogs ranges (Alchemy's free tier allows 10 blocks), so the watcher reads in slices and
+/// the events must still come out whole and in order.
+#[sqlx::test(migrations = "./migrations")]
+async fn watcher_reads_in_small_slices_without_losing_or_reordering_events(pool: PgPool) {
+    let w = world_with(pool, |c| c.max_log_range = 1).await;
+    fund(&w, 1_000_000).await;
+    post(
+        &w,
+        &dispatch(&w, "6f1c2b8e-9d4a-4e6f-8a1b-2c3d4e5f6a85", 1, 1_000_000),
+    )
+    .await;
+    post(
+        &w,
+        &sealed_event(
+            "6f1c2b8e-9d4a-4e6f-8a1b-2c3d4e5f6a86",
+            &sealed_for(&w, task(1)),
+        ),
+    )
+    .await;
+    let head = w.state.contracts.provider.get_block_number().await.unwrap();
+    let mut ticks = 0;
+    loop {
+        watcher::tick(&w.state).await.unwrap();
+        ticks += 1;
+        let cursor: i64 = sqlx::query_scalar("select block from watcher_cursor where id = 1")
+            .fetch_one(&w.state.db)
+            .await
+            .unwrap();
+        if cursor as u64 > head {
+            break;
+        }
+        assert!(ticks < 500, "the watcher never reached the head");
+    }
+    assert!(ticks > 1, "a one-block range needs more than one round");
+    outbox::deliver_due(&w.state, &reqwest::Client::new())
+        .await
+        .unwrap();
+    assert_eq!(
+        received_types(&w.orchestrator).await,
+        vec!["plan.funded", "task.escrowed", "receipt.committed"]
     );
 }
 

@@ -48,6 +48,8 @@ pub async fn world_with(pool: PgPool, tweak: impl FnOnce(&mut Config)) -> World 
         orchestrator_url: orchestrator.uri(),
         validator_url: validator.uri(),
         confirmations: 0,
+        max_log_range: mergit_gateway::watcher::MAX_RANGE,
+        start_block: None,
         deadline_slack_secs: 0,
         free_credits_units: 5_000_000,
         credit_plan_cap_units: 2_000_000,

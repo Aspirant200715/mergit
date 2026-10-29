@@ -34,6 +34,8 @@ async fn main() -> anyhow::Result<()> {
         orchestrator_url: env("ORCHESTRATOR_URL")?,
         validator_url: env("VALIDATOR_URL")?,
         confirmations: num("CONFIRMATIONS", 2),
+        max_log_range: num("LOG_RANGE", watcher::MAX_RANGE),
+        start_block: std::env::var("START_BLOCK").ok().and_then(|v| v.parse().ok()),
         deadline_slack_secs: num("DEADLINE_SLACK_SECS", 60),
         free_credits_units: num("FREE_CREDITS_USDC_UNITS", 5_000_000),
         credit_plan_cap_units: num("CREDIT_PLAN_CAP_USDC_UNITS", 2_000_000),

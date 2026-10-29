@@ -9,7 +9,7 @@ use alloy::sol_types::SolEvent;
 use mergit_chain_client::abi::{ChallengeManager, Escrow, ReceiptRegistry};
 use serde_json::{Value, json};
 
-/// Largest block range read in one round (public RPCs cap getLogs ranges).
+/// Default for `Config::max_log_range` (public RPCs cap getLogs ranges).
 pub const MAX_RANGE: u64 = 2000;
 
 const VERDICTS: [&str; 4] = ["none", "pass", "fail", "invalid"];
@@ -28,11 +28,11 @@ pub async fn tick(s: &AppState) -> anyhow::Result<usize> {
         .fetch_optional(&s.db)
         .await?
         .map(|b| b as u64)
-        .unwrap_or(s.deployment.deploy_block);
+        .unwrap_or(s.cfg.start_block.unwrap_or(s.deployment.deploy_block));
     if from > safe {
         return Ok(0);
     }
-    let to = safe.min(from + MAX_RANGE - 1);
+    let to = safe.min(from + s.cfg.max_log_range.max(1) - 1);
     let mut addresses: Vec<Address> = vec![s.deployment.escrow, s.deployment.receipt_registry];
     if s.deployment.challenge_manager != Address::ZERO {
         addresses.push(s.deployment.challenge_manager);

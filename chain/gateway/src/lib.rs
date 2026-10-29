@@ -22,6 +22,11 @@ pub struct Config {
     pub validator_url: String,
     /// Blocks to wait before acting on a log (2 on Base Sepolia; 0 in tests).
     pub confirmations: u64,
+    /// Largest block range read per getLogs call (`LOG_RANGE`). Alchemy's free tier allows 10.
+    pub max_log_range: u64,
+    /// First block read when the watcher has no cursor yet (`START_BLOCK`); the deployment's deploy block when
+    /// `None`. A fresh gateway on a public RPC can start near the head instead of replaying empty history.
+    pub start_block: Option<u64>,
     /// Seconds past a task's deadline before the keeper returns it.
     pub deadline_slack_secs: u64,
     /// Free credits granted once per address (a parameter, not a measurement).
