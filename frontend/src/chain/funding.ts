@@ -1,3 +1,5 @@
+import { formatUnits, parseUnits } from "viem";
+
 /** USDC has 6 decimals. */
 export const USDC_DECIMALS = 6;
 
@@ -5,6 +7,19 @@ export function formatUsdc(units: bigint): string {
   const whole = units / 1_000_000n;
   const cents = (units % 1_000_000n) / 10_000n;
   return `${whole.toString()}.${cents.toString().padStart(2, "0")}`;
+}
+
+/** Every digit of an amount, for a field the user edits: `formatUsdc` rounds to cents, this never does. */
+export function usdcText(units: bigint): string {
+  return formatUnits(units, USDC_DECIMALS);
+}
+
+const USDC_AMOUNT = /^\d+(\.\d{1,6})?$/;
+
+/** Base units for an amount typed as USDC ("2.5"), or null when it is not one. Never rounds. */
+export function parseUsdc(text: string): bigint | null {
+  const trimmed = text.trim();
+  return USDC_AMOUNT.test(trimmed) ? parseUnits(trimmed, USDC_DECIMALS) : null;
 }
 
 export type FundingState = { chainId: number; allowance: bigint; balance: bigint };

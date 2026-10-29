@@ -18,14 +18,17 @@ import { DATA_MODE } from "../config/live";
 import { LiveProofDetail } from "../screens/live/LiveProofDetail";
 import { LiveProofLedger } from "../screens/live/LiveProofLedger";
 import { LiveWallet } from "../screens/live/LiveWallet";
-
-const live = DATA_MODE === "live";
+import { LiveNewRun } from "../screens/live/run/LiveNewRun";
+import { LiveRunWorkspace } from "../screens/live/run/LiveRunWorkspace";
+import { LiveRuns } from "../screens/live/run/LiveRuns";
 import { paths } from "./paths";
 import { RootLayout } from "./RootLayout";
 
+const live = DATA_MODE === "live";
+
 /**
  * `/` is the landing page and `/app` the dashboard. The design has no runs list
- * screen, so that tab opens the demo run directly.
+ * screen, so on mock data that tab opens the demo run directly; on live data it lists the user's plans.
  */
 export const router = createBrowserRouter([
   {
@@ -42,9 +45,9 @@ export const router = createBrowserRouter([
         ),
         children: [
           { index: true, element: <Overview /> },
-          { path: "runs", element: <Navigate to={paths.run(runDetail.id)} replace /> },
-          { path: "runs/new", element: <NewRun /> },
-          { path: "runs/:runId", element: <RunWorkspace /> },
+          { path: "runs", element: live ? <LiveRuns /> : <Navigate to={paths.run(runDetail.id)} replace /> },
+          { path: "runs/new", element: live ? <LiveNewRun /> : <NewRun /> },
+          { path: "runs/:runId", element: live ? <LiveRunWorkspace /> : <RunWorkspace /> },
           { path: "agents", element: <Agents /> },
           { path: "proofs", element: live ? <LiveProofLedger /> : <ProofLedger /> },
           { path: "proofs/:proofId", element: live ? <LiveProofDetail /> : <ProofDetail /> },
