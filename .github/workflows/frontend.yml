@@ -2,10 +2,10 @@ name: frontend
 
 on:
   pull_request:
-    paths: ["frontend/**", ".github/workflows/frontend.yml"]
+    paths: ["frontend/**", "verifier/**", "spec/**", ".github/workflows/frontend.yml"]
   push:
     branches: [main]
-    paths: ["frontend/**", ".github/workflows/frontend.yml"]
+    paths: ["frontend/**", "verifier/**", "spec/**", ".github/workflows/frontend.yml"]
 
 permissions:
   contents: read
@@ -29,6 +29,16 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.0
+          targets: wasm32-unknown-unknown
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
+      # Builds src/verifier/pkg, so the e2e proof tests verify in the browser instead of skipping.
+      - run: bash scripts/build-wasm.sh
+      - run: wasm-pack test --node ../verifier/wasm
       - run: npm ci
       - run: npm run lint
       - run: npm run format:check

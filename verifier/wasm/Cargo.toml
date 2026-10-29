@@ -16,5 +16,10 @@ serde_json.workspace = true
 serde.workspace = true
 wasm-bindgen = "0.2"
 
+# k256 (via alloy-primitives) pulls getrandom 0.2, which refuses wasm32-unknown-unknown without its `js` backend.
+# Verification never draws randomness; this only lets the crate build for the browser.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
+
 [dev-dependencies]
 wasm-bindgen-test = "0.3"

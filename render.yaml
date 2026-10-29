@@ -42,7 +42,9 @@ services:
     runtime: static
     name: mergit-app
     rootDir: frontend
-    buildCommand: npm ci && npm run build
+    buildCommand: bash scripts/build-wasm.sh && npm ci && npm run build
+    buildFilter:
+      paths: ["frontend/**", "verifier/**", "spec/**"]
     staticPublishPath: dist
     autoDeploy: true
     domains:
@@ -169,6 +171,8 @@ services:
       - key: EVENTS_TOKEN
         sync: false
       - key: AUDIT_TOKEN
+        sync: false
+      - key: CHAIN_EVENTS_TOKEN
         sync: false
 
 databases:
