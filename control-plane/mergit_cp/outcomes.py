@@ -17,10 +17,9 @@ Either way, ``dispatch.dispatch_ready`` is asked what just became dispatchable, 
 task O4 asks on ``plan.funded`` and never a second copy of that rule. A plan whose every index has passed
 moves to ``done`` here, since nothing else is watching for that moment.
 
-``verdict.recorded``, ``task.released``, ``task.returned`` and the rest already land in
-``chain_events_seen`` (``mergit_cp/chain_events.py``) through no code path that touches the graph; that is
-by design (Review Focus item 1: only ``phi_eval`` moves it) and needs no change here. Turning them into a
-real per-plan ledger, rather than ``mergit_cp/runs.py``'s documented raw-log stand-in, is follow-up work.
+``verdict.recorded``, ``task.released``, ``task.returned`` and the rest are the money half of plan task O6:
+``mergit_cp/money.py`` records them in its own ledger table and, by design (Review Focus item 1: only
+``phi_eval`` moves the graph), nothing here reads that ledger or reacts to those events.
 """
 
 from __future__ import annotations

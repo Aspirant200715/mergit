@@ -3,8 +3,8 @@ agent roster, and Server-Sent Events as a run moves. The worker reports live ste
 `POST /v0/internal/progress`; everything else streamed here is read straight from the database on a
 short timer, since it is written by other requests, not by that endpoint.
 
-Verdicts and money came from `chain_events_seen`, O6's stand-in (see `runs.py`'s module docstring): once
-O6 exists, only the queries in `runs.py` should need to change, not this file.
+Verdicts and money are read from the `money_events` ledger (`mergit_cp/money.py`, plan task O6), the
+structured record of the gateway's verdict and payment events, not from the raw `chain_events_seen` log.
 """
 
 from __future__ import annotations
@@ -12,7 +12,6 @@ from __future__ import annotations
 import asyncio
 import hmac
 from collections.abc import AsyncIterator
-from datetime import datetime
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -20,7 +19,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
 
-from . import plans, runs
+from . import money, plans, runs
 from .agents import Agent
 from .auth import AddressDep, PoolDep, SettingsDep
 from .db import Pool
@@ -60,10 +59,10 @@ async def plan_detail(plan_uuid: UUID, address: AddressDep, pool: PoolDep) -> di
     async with pool.connection() as conn:
         plan = await _owned_plan(conn, plan_uuid, address)
         attempts = await runs.attempts(conn, plan_uuid)
-        money = await runs.money_events(conn, plan_uuid, plan.plan_id)
+        ledger = await money.list_for_plan(conn, plan_uuid)
     view = plans.view(plan)
     view["attempts"] = [runs.attempt_view(a) for a in attempts]
-    view["money_events"] = [runs.money_event_view(m) for m in money]
+    view["money_events"] = [money.view(m) for m in ledger]
     return view
 
 
@@ -134,7 +133,7 @@ async def _stream(
     queue = broadcaster.subscribe(key)
     last_state: str | None = None
     last_tasks: dict[int, tuple[str, bool | None]] = {}
-    last_money_at: datetime | None = None
+    sent_money: set[int] = set()
     try:
         while True:
             if await request.is_disconnected():
@@ -152,7 +151,7 @@ async def _stream(
                 if plan is None:
                     return
                 attempts = await runs.attempts(conn, plan_uuid)
-                money = await runs.money_events(conn, plan_uuid, plan.plan_id)
+                ledger = await money.list_for_plan(conn, plan_uuid)
 
             if plan.state != last_state:
                 yield sse("plan.state", {"state": plan.state})
@@ -162,12 +161,13 @@ async def _stream(
                 if last_tasks.get(a.index) != current:
                     yield sse("task.state", runs.attempt_view(a))
                     last_tasks[a.index] = current
-            for m in money:
-                if last_money_at is not None and m.received_at <= last_money_at:
+            for m in ledger:
+                # Track ledger row ids, not a time cursor: a row from a transaction that started earlier
+                # but committed after the last poll has an older timestamp (and possibly a lower id)
+                # than rows already sent, and must still be sent once.
+                if m.id in sent_money:
                     continue
-                event = "verdict" if m.type == "verdict.recorded" else "money"
-                yield sse(event, runs.money_event_view(m))
-            if money:
-                last_money_at = money[-1].received_at
+                sent_money.add(m.id)
+                yield sse("verdict" if m.kind == "verdict.recorded" else "money", money.view(m))
     finally:
         broadcaster.unsubscribe(key, queue)

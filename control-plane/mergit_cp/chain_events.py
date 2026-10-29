@@ -2,9 +2,10 @@
 
 Idempotent on ``event_id``: a retried delivery is accepted again with no second side effect, and in the
 same transaction as that one side effect, so a crash between the two can never happen. Only the two events
-that drive the task graph are acted on here; the rest (``verdict.recorded``, ``task.released``,
-``task.returned``, ``challenge.*``, ``credits.denied``, ``error``) are stored for plan task O6, which
-moves money and reputation on them but never the graph.
+that drive the task graph are acted on here. The money and verdict events (``receipt.committed``,
+``verdict.recorded``, ``task.released``, ``task.returned``, ``challenge.*``, ``credits.denied``) are
+written to the ``money_events`` ledger by ``mergit_cp/money.py`` in the same transaction (plan task O6,
+money half); they move money and reputation, never the graph. ``error`` stays only in the raw log.
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ from psycopg import AsyncConnection
 from psycopg.rows import TupleRow
 from psycopg.types.json import Jsonb
 
-from . import dispatch, plans
+from . import dispatch, money, plans
 from .auth import PoolDep, SettingsDep
 from .config import Settings
 from .spec import EventSchemaError, validate_event
@@ -83,6 +84,8 @@ async def receive(conn: AsyncConnection[TupleRow], envelope: dict[str, Any], set
         await on_plan_funded(conn, payload, settings)
     elif envelope["type"] == "task.escrowed":
         await on_task_escrowed(conn, payload)
+    elif envelope["type"] in money.KINDS:
+        await money.record(conn, envelope)
     return True
 
 
