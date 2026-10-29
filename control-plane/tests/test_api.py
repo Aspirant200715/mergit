@@ -183,6 +183,65 @@ def test_plan_detail_404_for_an_unknown_plan(client: TestClient):
     assert client.get(f"/v0/plans/{uuid.uuid4()}").status_code == 404
 
 
+def test_credits_denied_carries_its_reason_in_plan_detail(client: TestClient, settings: Settings):
+    """Issue #23: the plan stays `approved` (chain_events.py never moves it; see test_chain_events.py), so
+    the one thing O7 needs to do is make the denial and its reason visible, which it already does through
+    `money_events` (O6's stand-in)."""
+    address = sign_in(client)
+    plan_uuid, plan_id, _ = run(
+        settings.database_url, lambda pool: seed_plan(pool, requester=address, state="approved", n_tasks=1)
+    )
+    run(
+        settings.database_url,
+        lambda pool: seed_chain_event(pool, "credits.denied", {"plan_id": plan_id, "reason": "rate_limited"}),
+    )
+
+    body = client.get(f"/v0/plans/{plan_uuid}").json()
+    assert body["state"] == "approved"
+    denial = next(e for e in body["money_events"] if e["type"] == "credits.denied")
+    assert denial["payload"]["reason"] == "rate_limited"
+
+
+def test_credits_denied_streams_as_a_money_event(client: TestClient, settings: Settings):
+    address = sign_in(client)
+    plan_uuid, plan_id, _ = run(
+        settings.database_url, lambda pool: seed_plan(pool, requester=address, state="approved", n_tasks=1)
+    )
+
+    events: list[tuple[str, dict[str, Any]]] = []
+    stop = threading.Event()
+
+    def consume() -> None:
+        with client.stream("GET", f"/v0/plans/{plan_uuid}/events") as response:
+            event_name = None
+            for line in response.iter_lines():
+                if stop.is_set():
+                    return
+                if line.startswith("event: "):
+                    event_name = line.removeprefix("event: ")
+                elif line.startswith("data: ") and event_name is not None:
+                    events.append((event_name, json.loads(line.removeprefix("data: "))))
+                    event_name = None
+
+    thread = threading.Thread(target=consume, daemon=True)
+    thread.start()
+    try:
+        _wait_for(lambda: any(n == "plan.state" for n, _ in events))
+        run(
+            settings.database_url,
+            lambda pool: seed_chain_event(
+                pool, "credits.denied", {"plan_id": plan_id, "reason": "over_value_cap"}
+            ),
+        )
+        _wait_for(lambda: any(n == "money" for n, _ in events))
+    finally:
+        stop.set()
+        thread.join(timeout=5)
+
+    money = next(d for n, d in events if n == "money")
+    assert money["payload"]["reason"] == "over_value_cap"
+
+
 def test_agents_lists_id_name_and_model(client: TestClient):
     body = client.get("/v0/agents").json()
     assert body == [{"agent_id": "1", "name": "coder-a", "model": "claude-sonnet-5"}]

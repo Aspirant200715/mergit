@@ -237,6 +237,67 @@ def test_task_id_matches_spec_vector(database_url: str) -> None:
     run(database_url, body)
 
 
+def test_credits_denied_leaves_the_plan_where_the_requester_can_act_on_it(database_url: str) -> None:
+    """``credits.denied`` only ever arrives before ``plan.funded`` (the gateway tries credits first, and
+    only sends ``plan.funded`` once money actually landed), so the plan is already sitting exactly where
+    issue #23 wants it: ``approved``, not yet funded, free to fund from a wallet (independent of this
+    service) or close (`outcomes.abandon`, plan task O6). There is no state to move it to that it is not
+    already in; the gap #23 flagged was that the reason went nowhere, which `runs.money_events` (O7) now
+    carries, see `test_api.py`."""
+
+    async def body(pool: Pool) -> None:
+        async with pool.connection() as conn, conn.transaction():
+            plan = await _approved_plan(conn, [task(0)])
+        for reason in ("no_credits", "rate_limited", "over_value_cap"):
+            event = {
+                "event_id": str(uuid.uuid4()),
+                "type": "credits.denied",
+                "at": "2026-10-29T00:00:00.000Z",
+                "payload": {"plan_id": plan.plan_id, "reason": reason},
+            }
+            async with pool.connection() as conn, conn.transaction():
+                is_new = await chain_events.receive(conn, event, SETTINGS)
+            assert is_new
+
+        async with pool.connection() as conn:
+            loaded = await plans.load(conn, uuid.UUID(plan.plan_uuid))
+            cur = await conn.execute(
+                "SELECT payload ->> 'reason' FROM chain_events_seen"
+                " WHERE type = 'credits.denied' ORDER BY received_at"
+            )
+            reasons = [r[0] for r in await cur.fetchall()]
+        assert loaded is not None and loaded.state == "approved"
+        assert reasons == ["no_credits", "rate_limited", "over_value_cap"]
+        assert await _counts(pool) == (0, 0)  # never dispatched: credits.denied is not plan.funded
+
+    run(database_url, body)
+
+
+def test_duplicate_credits_denied_is_ignored(database_url: str) -> None:
+    async def body(pool: Pool) -> None:
+        async with pool.connection() as conn, conn.transaction():
+            plan = await _approved_plan(conn, [task(0)])
+            event = {
+                "event_id": str(uuid.uuid4()),
+                "type": "credits.denied",
+                "at": "2026-10-29T00:00:00.000Z",
+                "payload": {"plan_id": plan.plan_id, "reason": "no_credits"},
+            }
+            first = await chain_events.receive(conn, event, SETTINGS)
+        assert first
+
+        async with pool.connection() as conn, conn.transaction():
+            second = await chain_events.receive(conn, event, SETTINGS)
+        assert not second
+
+        async with pool.connection() as conn:
+            cur = await conn.execute("SELECT count(*) FROM chain_events_seen WHERE type = 'credits.denied'")
+            n = await cur.fetchone()
+        assert n is not None and n[0] == 1
+
+    run(database_url, body)
+
+
 def test_chain_event_endpoint_requires_the_shared_token(client: TestClient) -> None:
     body = {
         "event_id": str(uuid.uuid4()),

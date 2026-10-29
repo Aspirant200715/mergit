@@ -104,6 +104,14 @@ things on top of the plan and its tasks:
   its tasks' `task_id` through `task_dispatches` (`receipt.committed`, `verdict.recorded`, `task.released`,
   `task.returned`, `challenge.*`), exactly as `POST /v0/chain-events` received it.
 
+**`credits.denied` (issue #23) needs no handler, only this read.** It only ever arrives before
+`plan.funded` (the gateway tries credits first and sends `plan.funded` only once money actually landed), so
+the plan is already sitting exactly where a denied requester needs it: `approved`, not yet funded, free to
+fund from a wallet (independent of this service entirely) or close (`POST /v0/plans/{plan_uuid}/abandon`,
+plan task O6). The only real gap was the reason going nowhere, and `money_events`/the SSE `money` event
+already carry it; see `test_credits_denied_carries_its_reason_in_plan_detail` and
+`test_credits_denied_streams_as_a_money_event`.
+
 **`money_events` is a stand-in for a real ledger, not that ledger.** O6 (above) now exists, but only its
 task-graph half: outcomes, retries and escalation. Turning the gateway's money and verdict events into
 structured, queryable records (who was paid, how much, why) is a separate piece of that plan task, not done
