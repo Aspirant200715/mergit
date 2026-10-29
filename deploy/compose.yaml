@@ -78,6 +78,7 @@ services:
       GATEWAY_ADDR: "0.0.0.0:8082"
       EVENTS_TOKEN: local-events-token
       AUDIT_TOKEN: local-audit-token
+      CHAIN_EVENTS_TOKEN: local-chain-events-token
     ports: ["8082:8082"]
     depends_on:
       deploy: { condition: service_completed_successfully }

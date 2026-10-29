@@ -54,6 +54,7 @@ pub async fn world_with(pool: PgPool, tweak: impl FnOnce(&mut Config)) -> World 
         credit_plans_per_day: 3,
         events_token: Some(TOKEN.into()),
         audit_token: Some("test-audit-token".into()),
+        chain_events_token: Some("test-chain-events-token".into()),
     };
     tweak(&mut cfg);
     chain

@@ -90,9 +90,11 @@ pub async fn deliver_due(s: &AppState, http: &reqwest::Client) -> anyhow::Result
                 "Idempotency-Key",
                 row.get::<Uuid, _>("event_id").to_string(),
             );
-            if target == "validator"
-                && let Some(token) = &s.cfg.audit_token
-            {
+            let token = match target {
+                "validator" => &s.cfg.audit_token,
+                _ => &s.cfg.chain_events_token,
+            };
+            if let Some(token) = token {
                 request = request.bearer_auth(token);
             }
             let status = request

@@ -10,9 +10,11 @@ the other's database.
 
 - HTTP `POST`, JSON body = the envelope, header `Idempotency-Key: <event_id>`.
 - **Authenticated with a shared secret** sent as `Authorization: Bearer <token>`: the orchestrator sends
-  `EVENTS_TOKEN` to the gateway; the gateway sends `AUDIT_TOKEN` on audit requests to the validator; workers send
-  `STORE_WRITE_TOKEN` when they upload a bundle to the store. A request without the right token gets `401`.
-  Store reads stay public.
+  `EVENTS_TOKEN` to the gateway; the gateway sends `CHAIN_EVENTS_TOKEN` to the orchestrator and `AUDIT_TOKEN` on
+  audit requests to the validator; workers send
+  `STORE_WRITE_TOKEN` when they upload a bundle to the store, and `WORKER_TOKEN` when they report live steps to
+  the control plane (`POST /v0/internal/progress`, internal to orchestration). A request without the right token
+  gets `401`. Store reads stay public.
 - Orchestration → gateway: `POST {GATEWAY_URL}/v0/events`.
 - Gateway → orchestration: `POST {ORCHESTRATOR_URL}/v0/chain-events`.
 - The receiver answers `200` for a new event **and** for one it has already seen, and `4xx` for an event

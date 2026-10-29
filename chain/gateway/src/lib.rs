@@ -35,6 +35,8 @@ pub struct Config {
     pub events_token: Option<String>,
     /// The validator's shared secret, sent as `Authorization: Bearer <token>` on audit requests.
     pub audit_token: Option<String>,
+    /// The orchestrator's shared secret, sent as `Authorization: Bearer <token>` on /v0/chain-events.
+    pub chain_events_token: Option<String>,
 }
 
 #[derive(Clone)]

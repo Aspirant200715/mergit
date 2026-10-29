@@ -116,6 +116,13 @@ async fn watcher_emits_events_in_chain_order(pool: PgPool) {
         "the validator only accepts audit requests carrying its token"
     );
     assert_eq!(audits.len(), 1);
+    for r in w.orchestrator.received_requests().await.unwrap() {
+        assert_eq!(
+            r.headers.get("authorization").map(|v| v.to_str().unwrap()),
+            Some("Bearer test-chain-events-token"),
+            "the orchestrator only accepts chain events carrying its token"
+        );
+    }
     let body: Value = serde_json::from_slice(&audits[0].body).unwrap();
     assert_eq!(body["task_id"].as_str().unwrap(), task(1).to_string());
     // A second tick sees nothing new.

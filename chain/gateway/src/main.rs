@@ -2,7 +2,7 @@
 //! GATEWAY_ADDR (default 0.0.0.0:8082), CONFIRMATIONS (default 2), DEADLINE_SLACK_SECS (default 60),
 //! TREASURY_KEY (enables free credits), FREE_CREDITS_USDC_UNITS (5000000), CREDIT_PLAN_CAP_USDC_UNITS (2000000),
 //! CREDIT_PLANS_PER_DAY (3), EVENTS_TOKEN (required: the orchestrator's shared secret for /v0/events), AUDIT_TOKEN (required: the
-//! validator's shared secret). The credit
+//! validator's shared secret), CHAIN_EVENTS_TOKEN (required: sent to the orchestrator on /v0/chain-events). The credit
 //! figures are parameters, not measurements.
 
 use mergit_chain_client::{Contracts, Deployment, provider};
@@ -40,6 +40,7 @@ async fn main() -> anyhow::Result<()> {
         credit_plans_per_day: num("CREDIT_PLANS_PER_DAY", 3),
         events_token: Some(env("EVENTS_TOKEN")?),
         audit_token: Some(env("AUDIT_TOKEN")?),
+        chain_events_token: Some(env("CHAIN_EVENTS_TOKEN")?),
     };
     let mut state = AppState::new(db, contracts, deployment.clone(), cfg);
     match std::env::var("TREASURY_KEY") {

@@ -227,13 +227,13 @@ flowchart TB
 
 | ID | Component | Owns | Must not | Trust | Phase |
 | --- | --- | --- | --- | --- | --- |
-| C1 | Web app | Dashboard, run workspace, plan approval, live run view, receipt inspector, agent and wallet screens. Exists today as a front end over mock data. | Compute anything the verifier should; hold a decision | Untrusted client | P0 onward; live run view O3 |
+| C1 | Web app | Dashboard, run workspace, plan approval, live run view, receipt inspector, agent and wallet screens. Exists today as a front end over mock data. | Compute anything the verifier should; hold a decision | Untrusted client | P0 onward; live run view OP3 |
 | C2 | Public API and events | Task submission, receipt access by tier, challenge entry, event stream | Bypass tier checks | Platform | P0 |
 | C3 | Verifier library and CLI | Verifying a receipt: hash chain, Merkle paths, signature, attestation, commitment match. Offline. | Depend on any Mergit service to reach a verdict | **Independent of the platform by design** | P0 |
 | C4 | Task service | Task state machine, intake, deadlines | Decide outcomes | Platform | P0 |
 | C5 | Predicate service | Validating that `Φ` is present, executable and not trivially satisfiable. Predicate templates per category. | Judge whether work satisfied `Φ` | Platform | P0 |
 | C6 | Tier and quota service | Faucet ledger, rate limits, value caps, concurrency cap checks (reads StakeVault) | Grant reputation to the onboarding tier | Platform | P3 |
-| C7 | Router | Selecting an agent: the requester's choice under human-in-the-loop (the default), Thompson sampling in autonomous mode (paper §4.2 step 2) | Read anything but posteriors, budget and task parameters | Platform | O4 (requester's choice), P4 (autonomous mode) |
+| C7 | Router | Selecting an agent: the requester's choice under human-in-the-loop (the default), Thompson sampling in autonomous mode (paper §4.2 step 2) | Read anything but posteriors, budget and task parameters | Platform | OP4 (requester's choice), P4 (autonomous mode) |
 | C8 | Accounts and auth | Requester accounts for the onboarding tier, wallet-based sign-in for the staked tier | Hold funds | Platform | P0 / P3 |
 | C9 | Agent registry | Agent packages, their measurements, binding to an on-chain identity | Record a trust claim | Platform | P1 |
 | C10 | Runtime scheduler | Placing a task on a TEE node, job lifecycle, timeouts | Read inside the enclave | Platform | P0 |
@@ -253,8 +253,8 @@ flowchart TB
 | C24 | Image build and measurement | Reproducible builds of the runtime image and the published measurement | Ship an image whose measurement is not published | Platform, auditable | P1 |
 | C25 | Observability | Operational logs, metrics and traces | Feed any settlement or reputation decision | Platform | P0 |
 | C26 | Payment gateway | Verifying a requester's payment, funding Escrow, the faucet ledger for the onboarding tier, the payment leg (x402-compatible where the rail fits) | Hold funds itself, or decide an outcome | Platform. **Proposed: a module over C6, C8 and C19, not a new trust boundary** | P2 (testnet), P3 |
-| C27 | Planner | Drafting a task graph from a goal: tasks, each with a proposed `Φ`, budget, category and dependencies. **Proposed.** | Approve its own plan; reach an enclave, a credential or a receipt. Its draft binds no one until the requester approves it. | Platform. Its model use is D18 | O1 |
-| C28 | Orchestrator | Plan approval, the task graph and its dependencies, the ready queue, moving the graph on after each outcome (§7.7), retry on another agent, escalation to a human, the final human gate before a pull request is opened. **Proposed.** | Mark a task done on an agent's claim; update reputation; release or hold money | Platform | O1–O2 |
+| C27 | Planner | Drafting a task graph from a goal: tasks, each with a proposed `Φ`, budget, category and dependencies. **Proposed.** | Approve its own plan; reach an enclave, a credential or a receipt. Its draft binds no one until the requester approves it. | Platform. Its model use is D18 | OP1 |
+| C28 | Orchestrator | Plan approval, the task graph and its dependencies, the ready queue, moving the graph on after each outcome (§7.7), retry on another agent, escalation to a human, the final human gate before a pull request is opened. **Proposed.** | Mark a task done on an agent's claim; update reputation; release or hold money | Platform | OP1–OP2 |
 
 ### 4.2 Deployable units (proposed)
 
@@ -573,7 +573,7 @@ requester, and its cost is recorded in the subsidy ledger (C22), with explorator
 identity and per operator.
 
 **Before P4 the requester picks.** Human-in-the-loop is the paper's default (§4.2 step 2), so the router
-of O4 lists candidate agents and the requester chooses; Thompson sampling switches on at P4, when C21
+of OP4 lists candidate agents and the requester chooses; Thompson sampling switches on at P4, when C21
 exists. Posteriors are not seeded from any score that is not a validated outcome, including the `Φ`
 results of §7.7. Whether audited history from before P3 may seed them is D19.
 
@@ -638,10 +638,10 @@ M0–M4 (paper §7).
 
 | Track | What exists | Depends on | Measurement that starts |
 | :---: | --- | --- | --- |
-| **O1** | Planner (C27), plan approval by the requester, task graph with dependencies (C28) | C4, C5 (P0) | How often requesters edit or reject a plan; planner cost per goal (D18) |
-| **O2** | Ready queue, dispatch to C10, graph moved on `Φ` results (§7.7), retry on another agent, escalation, the human gate before a pull request | C10, C11 (P0) | Tasks per goal, retries per task, escalations per goal |
-| **O3** | Live run view in C1 over the I2 event stream, receipt inspector backed by the verifier (C3) | C2, C3 (P0) | None that bears on the thesis |
-| **O4** | Router in human-in-the-loop mode: candidates listed, the requester picks (C7) | C9 (P1) | None. Thompson sampling waits for C21 at P4 |
+| **OP1** | Planner (C27), plan approval by the requester, task graph with dependencies (C28) | C4, C5 (P0) | How often requesters edit or reject a plan; planner cost per goal (D18) |
+| **OP2** | Ready queue, dispatch to C10, graph moved on `Φ` results (§7.7), retry on another agent, escalation, the human gate before a pull request | C10, C11 (P0) | Tasks per goal, retries per task, escalations per goal |
+| **OP3** | Live run view in C1 over the I2 event stream, receipt inspector backed by the verifier (C3) | C2, C3 (P0) | None that bears on the thesis |
+| **OP4** | Router in human-in-the-loop mode: candidates listed, the requester picks (C7) | C9 (P1) | None. Thompson sampling waits for C21 at P4 |
 
 **P0 can run on modest hardware, and P1 cannot.** A laptop or a small server is enough to build and
 test the receipt format, the hash chain and the verifier. Anything involving attestation needs
@@ -870,7 +870,7 @@ Found while preparing this document. Each is a defect in the document named, not
 | 5 | **Whitepaper header** | Dated 2026-10-09 and "draft 1" although it carries revision-5 content. |
 | 6 | **PRD §8 and paper §6** | No place is named for the list of accepted runtime-image measurements (D8). |
 | 7 | **Paper and PRD** | Neither names who adjudicates a challenge at v1 (D9), or the semantics of a crashed task (D7). |
-| 8 | **PRD §14** | Its phases cover only the trust layer. The planner, task graph, plan approval and live front end have no phase, and the paper names the orchestrator (§4.1 item 6) without decomposing it. This document adds C27, C28 and the O1–O4 track as proposals. |
+| 8 | **PRD §14** | Its phases cover only the trust layer. The planner, task graph, plan approval and live front end have no phase, and the paper names the orchestrator (§4.1 item 6) without decomposing it. This document adds C27, C28 and the OP1–OP4 track as proposals. |
 
 ---
 
