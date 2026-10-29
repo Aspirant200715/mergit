@@ -1,0 +1,64 @@
+# The Rust services against Base Sepolia, on one machine (a laptop now, one server later).
+#   deploy/make-testnet-env.sh <alchemy-rpc-url>                    # once: writes deploy/secrets/testnet.env
+#   docker compose -f deploy/compose.testnet.yaml up --build
+# Needs ../mergit-contracts/deployments/base-sepolia.json (from script/testnet.sh deploy).
+# Every secret comes from deploy/secrets/testnet.env, which is git-ignored. Nothing secret is in this file.
+# The control plane (Python) is not in this file: it runs from its own repo and talks to the ports below.
+
+x-rust: &rust
+  build: { context: .., dockerfile: deploy/docker/rust.Dockerfile }
+  image: mergit-rust:local
+  restart: unless-stopped
+  env_file: secrets/testnet.env
+  extra_hosts: ["host.docker.internal:host-gateway"]
+  volumes:
+    - ../../mergit-contracts/deployments/base-sepolia.json:/deployments/base-sepolia.json:ro
+  environment: &chain
+    DEPLOYMENT_FILE: /deployments/base-sepolia.json
+    RUST_LOG: info
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment: { POSTGRES_PASSWORD: mergit, POSTGRES_DB: mergit }
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck: { test: ["CMD", "pg_isready", "-U", "postgres"], interval: 2s, retries: 30 }
+
+  store:
+    <<: *rust
+    command: ["mergit-store"]
+    environment: { STORE_DATA_DIR: /data, STORE_ADDR: "0.0.0.0:8081" }
+    volumes: ["receipts:/data"]
+    ports: ["8081:8081"]
+
+  validator:
+    <<: *rust
+    command: ["mergit-validator"]
+    environment:
+      <<: *chain
+      STORE_URL: http://store:8081
+      AUDIT_P: "1.0"
+      VALIDATOR_DATA_DIR: /data
+      VALIDATOR_ADDR: "0.0.0.0:8083"
+    volumes:
+      - audits:/data
+      - ../../mergit-contracts/deployments/base-sepolia.json:/deployments/base-sepolia.json:ro
+    ports: ["8083:8083"]
+
+  gateway:
+    <<: *rust
+    command: ["mergit-gateway"]
+    environment:
+      <<: *chain
+      DATABASE_URL: postgres://postgres:mergit@postgres:5432/mergit
+      VALIDATOR_URL: http://validator:8083
+      # The orchestration API; on the same machine it is published on the host at 8000.
+      ORCHESTRATOR_URL: http://host.docker.internal:8000
+      CONFIRMATIONS: "2"
+      GATEWAY_ADDR: "0.0.0.0:8082"
+    ports: ["8082:8082"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+volumes: { pgdata: {}, receipts: {}, audits: {} }
