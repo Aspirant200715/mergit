@@ -1,11 +1,12 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useAuth } from "../auth/context";
-import { me } from "../mock/data";
+import { useIdentity } from "../auth/useIdentity";
 import { Icon } from "./Icon";
 
 /** Avatar button with the signed-in address and Sign out. */
 export function AccountMenu() {
-  const { session, signOut } = useAuth();
+  const { signOut } = useAuth();
+  const identity = useIdentity();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -30,7 +31,7 @@ export function AccountMenu() {
       <button
         type="button"
         className="avatarme"
-        aria-label={`Account, signed in as ${me.name}`}
+        aria-label={`Account, signed in as ${identity.name ?? identity.addressShort}`}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}
@@ -38,13 +39,13 @@ export function AccountMenu() {
           setOpen((v) => !v);
         }}
       >
-        {me.initials}
+        {identity.initials}
       </button>
       {open && (
         <div id={menuId} className="account-menu page-enter" role="menu">
           <div className="account-who">
-            <span className="strong">{me.name}</span>
-            <span className="mono-s c3">{session?.addressShort ?? me.address}</span>
+            <span className="strong">{identity.name ?? "Your wallet"}</span>
+            <span className="mono-s c3">{identity.address || identity.addressShort}</span>
           </div>
           <button type="button" role="menuitem" className="account-item" onClick={signOut}>
             <Icon name="external" size={14} />

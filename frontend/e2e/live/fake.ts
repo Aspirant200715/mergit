@@ -31,6 +31,7 @@ export type Backend = {
 const SELECTOR = {
   commitmentOf: toFunctionSelector("commitmentOf(bytes32)"),
   runtimeKeyOf: toFunctionSelector("runtimeKeyOf(uint256)"),
+  operatorOf: toFunctionSelector("operatorOf(uint256)"),
   phiHashOf: toFunctionSelector("phiHashOf(bytes32)"),
 };
 
@@ -155,6 +156,7 @@ function rpc(b: Backend) {
           const data = (req.params[0] as { data: string }).data;
           if (data.startsWith("0x70a08231")) return word(b.usdcUnits ?? 0n); // balanceOf
           if (data.startsWith("0xdd62ed3e")) return word(0n); // allowance
+          if (data.startsWith(SELECTOR.operatorOf)) return encodeAbiParameters([{ type: "address" }], [OTHER]);
           if (data.startsWith(SELECTOR.runtimeKeyOf)) return encodeAbiParameters([{ type: "address" }], [RUNTIME_KEY]);
           if (data.startsWith(SELECTOR.commitmentOf)) {
             const task = `0x${data.slice(10, 74)}`;

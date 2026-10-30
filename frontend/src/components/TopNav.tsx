@@ -2,31 +2,26 @@ import { paths } from "../app/paths";
 import { useRef } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { useSlidingThumb } from "../hooks/useSlidingThumb";
-import { me } from "../mock/data";
+import { useIdentity } from "../auth/useIdentity";
+import { DATA_MODE } from "../config/live";
 import { useApprovals } from "../state/approvals";
 import { useNotWired } from "../hooks/useNotWired";
-import { Icon, type IconName } from "./Icon";
+import { Icon } from "./Icon";
 import { MergitLogo } from "./MergitLogo";
 import { ThemeToggle } from "./ThemeToggle";
 import { AccountMenu } from "./AccountMenu";
+import { navTabs, type NavTab } from "./navTabs";
 
-const TABS: { label: string; icon: IconName; to: string }[] = [
-  { label: "Overview", icon: "overview", to: paths.app },
-  { label: "Runs", icon: "runs", to: paths.runs },
-  { label: "Agents", icon: "agents", to: paths.agents },
-  { label: "Proofs", icon: "proofs", to: paths.proofs },
-  { label: "Leaderboard", icon: "trophy", to: paths.leaderboard },
-  { label: "Integrations", icon: "plug", to: paths.integrations },
-];
-
-function activeTab(pathname: string) {
+function activeTab(tabs: NavTab[], pathname: string) {
   if (pathname === paths.app) return paths.app;
-  return TABS.find((t) => t.to !== paths.app && pathname.startsWith(t.to))?.to ?? null;
+  return tabs.find((t) => t.to !== paths.app && pathname.startsWith(t.to))?.to ?? null;
 }
 
 export function TopNav() {
   const { pathname } = useLocation();
-  const active = activeTab(pathname);
+  const tabs = navTabs(DATA_MODE);
+  const active = activeTab(tabs, pathname);
+  const identity = useIdentity();
   const tabsRef = useRef<HTMLElement>(null);
   const thumb = useSlidingThumb(tabsRef, ".tab.on", active);
   const { waiting } = useApprovals();
@@ -38,7 +33,7 @@ export function TopNav() {
         <Link to={paths.app} className="row" aria-label="Mergit overview">
           <MergitLogo height={30} title="" />
         </Link>
-        <span className="chip repo-chip">{me.repo}</span>
+        {identity.repo && <span className="chip repo-chip">{identity.repo}</span>}
       </div>
 
       <nav className="tabs" ref={tabsRef} aria-label="Primary">
@@ -50,7 +45,7 @@ export function TopNav() {
             style={{ width: thumb.w, transform: `translateX(${thumb.x}px)` }}
           />
         )}
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <NavLink
             key={tab.to}
             to={tab.to}
@@ -82,7 +77,7 @@ export function TopNav() {
           aria-label="Wallet and identity"
         >
           <span className="orb" />
-          <span className="mono">{me.address}</span>
+          <span className="mono">{identity.addressShort}</span>
         </NavLink>
         <AccountMenu />
       </div>

@@ -17,6 +17,8 @@ import { Wallet } from "../screens/Wallet";
 import { DATA_MODE } from "../config/live";
 import { LiveProofDetail } from "../screens/live/LiveProofDetail";
 import { LiveProofLedger } from "../screens/live/LiveProofLedger";
+import { LiveAgents } from "../screens/live/LiveAgents";
+import { LiveOverview } from "../screens/live/LiveOverview";
 import { LiveWallet } from "../screens/live/LiveWallet";
 import { LiveNewRun } from "../screens/live/run/LiveNewRun";
 import { LiveRunWorkspace } from "../screens/live/run/LiveRunWorkspace";
@@ -44,15 +46,16 @@ export const router = createBrowserRouter([
           </RequireSession>
         ),
         children: [
-          { index: true, element: <Overview /> },
+          { index: true, element: live ? <LiveOverview /> : <Overview /> },
           { path: "runs", element: live ? <LiveRuns /> : <Navigate to={paths.run(runDetail.id)} replace /> },
           { path: "runs/new", element: live ? <LiveNewRun /> : <NewRun /> },
           { path: "runs/:runId", element: live ? <LiveRunWorkspace /> : <RunWorkspace /> },
-          { path: "agents", element: <Agents /> },
+          { path: "agents", element: live ? <LiveAgents /> : <Agents /> },
           { path: "proofs", element: live ? <LiveProofLedger /> : <ProofLedger /> },
           { path: "proofs/:proofId", element: live ? <LiveProofDetail /> : <ProofDetail /> },
-          { path: "leaderboard", element: <Leaderboard /> },
-          { path: "integrations", element: <Integrations /> },
+          // Reputation is not computed and no integration is wired, so live data has neither page.
+          { path: "leaderboard", element: live ? <Navigate to={paths.app} replace /> : <Leaderboard /> },
+          { path: "integrations", element: live ? <Navigate to={paths.app} replace /> : <Integrations /> },
           { path: "wallet", element: live ? <LiveWallet /> : <Wallet /> },
           { path: "*", element: <NotFound /> },
         ],

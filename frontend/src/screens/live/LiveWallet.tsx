@@ -4,9 +4,9 @@ import { Badge } from "../../components/Badge";
 import { Button } from "../../components/Button";
 import { PageHeader } from "../../components/PageHeader";
 import { useAuth } from "../../auth/context";
-import { injected, publicClient, switchChain, walletChainId } from "../../chain/client";
-import { erc20Abi } from "../../chain/erc20";
+import { injected, switchChain, walletChainId } from "../../chain/client";
 import { formatUsdc } from "../../chain/funding";
+import { useBalances } from "../../chain/useBalances";
 import { useCredits } from "../../chain/useCredits";
 import { LIVE } from "../../config/live";
 import { useCopy } from "../../hooks/useCopy";
@@ -25,25 +25,6 @@ function useWalletChain() {
     };
   }, []);
   return [chainId, setChainId] as const;
-}
-
-function useBalances(address: Address | null) {
-  const [b, setB] = useState<{ eth: bigint; usdc: bigint } | null>(null);
-  useEffect(() => {
-    if (!address) return;
-    void Promise.all([
-      publicClient.getBalance({ address }),
-      publicClient.readContract({
-        address: LIVE.contracts.usdc,
-        abi: erc20Abi,
-        functionName: "balanceOf",
-        args: [address],
-      }),
-    ]).then(([eth, usdc]) => {
-      setB({ eth, usdc });
-    });
-  }, [address]);
-  return b;
 }
 
 /** The wallet screen on live data: testnet balances, free credits, network, faucets. */
