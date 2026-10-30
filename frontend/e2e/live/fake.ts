@@ -21,6 +21,15 @@ export type Backend = {
   commitments?: Array<{ taskId: Hex; agentId: bigint; root: Hex; bodyHash: Hex; costMicros: bigint; block: number }>;
   /** Bundles the store serves, keyed by body hash (the only way the app may fetch them). */
   bundles?: Record<string, string>;
+  /** What GET /v0/auth/providers says is set up. Default: none, so only the wallet is offered. */
+  providers?: { wallet: boolean; github: boolean; google: boolean; email: boolean };
+  /**
+   * What GET /v0/auth/me answers: an account (the session cookie after GitHub, Google or an emailed code), `null` for
+   * no session (401). Unset, it answers with something that is not an account, so a remembered session is kept.
+   */
+  me?: Record<string, unknown> | null;
+  /** What `me` becomes once the emailed code has been accepted. */
+  meAfterEmail?: Record<string, unknown>;
   /** On-chain commitment per task, as `commitmentOf` returns it. */
   committed?: Record<
     string,
@@ -222,6 +231,27 @@ export async function mockBackend(page: Page, b: Backend = {}) {
     apiCalls.push({ path, body: route.request().postDataJSON() as unknown });
     if (path === "/v0/auth/nonce") return json(route, { nonce: "a1b2c3d4e5f6a7b8" });
     if (path === "/v0/auth/verify") return json(route, { address: ME });
+    if (path === "/v0/auth/providers")
+      return json(route, b.providers ?? { wallet: true, github: false, google: false, email: false });
+    if (path === "/v0/auth/me") {
+      if (b.me === null) return json(route, { detail: "not signed in" }, 401);
+      return json(route, b.me ?? {});
+    }
+    if (path === "/v0/auth/email/start") return route.fulfill({ status: 204, headers: CORS(route) });
+    if (path === "/v0/auth/email/verify") {
+      if (b.meAfterEmail) b.me = b.meAfterEmail;
+      const address = b.meAfterEmail?.["address"];
+      return json(route, { address: typeof address === "string" ? address : ME });
+    }
+    if (path === "/v0/account/trial") {
+      const started_at = "2026-10-30T10:00:00+00:00";
+      b.me = { ...b.me, trial: { started_at } };
+      return json(route, { started_at });
+    }
+    if (path === "/v0/auth/wallet/link") {
+      b.me = { ...b.me, address: ME.toLowerCase(), wallets: [ME.toLowerCase()] };
+      return json(route, { address: ME.toLowerCase() });
+    }
     return json(route, {});
   });
   await page.route(`${LIVE_ENV.VITE_GATEWAY_URL}/**`, (route) =>

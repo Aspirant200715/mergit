@@ -3,7 +3,9 @@ import { formatEther, type Address } from "viem";
 import { Badge } from "../../components/Badge";
 import { Button } from "../../components/Button";
 import { PageHeader } from "../../components/PageHeader";
+import { isTrialSession } from "../../auth/account";
 import { useAuth } from "../../auth/context";
+import { useConnectWallet } from "../../auth/useConnectWallet";
 import { injected, switchChain, walletChainId } from "../../chain/client";
 import { formatUsdc } from "../../chain/funding";
 import { useBalances } from "../../chain/useBalances";
@@ -29,19 +31,28 @@ function useWalletChain() {
 
 /** The wallet screen on live data: testnet balances, free credits, network, faucets. */
 export function LiveWallet() {
-  const { session } = useAuth();
-  const address = (session?.address ?? null) as Address | null;
+  const { session, account } = useAuth();
+  // A free-trial account has no wallet: its credits are the gateway's, under the trial address, and there are no
+  // balances to read.
+  const trial = isTrialSession(account, session?.address);
+  const creditsFor = (session?.address ?? null) as Address | null;
+  const address = trial ? null : creditsFor;
+  const connectWallet = useConnectWallet();
   const copy = useCopy();
   const [chainId, setChainId] = useWalletChain();
   const balances = useBalances(address);
-  const { credits, error } = useCredits(address);
-  const wrongChain = chainId !== null && chainId !== LIVE.chainId;
+  const { credits, error } = useCredits(creditsFor);
+  const wrongChain = !trial && chainId !== null && chainId !== LIVE.chainId;
 
   return (
     <>
       <PageHeader
         title="Wallet"
-        subtitle={`Your address on ${LIVE.chainName}. All balances here are testnet funds only, never real money.`}
+        subtitle={
+          trial
+            ? "You are on the free trial, with no wallet connected."
+            : `Your address on ${LIVE.chainName}. All balances here are testnet funds only, never real money.`
+        }
       />
 
       {wrongChain && (
@@ -61,40 +72,63 @@ export function LiveWallet() {
       )}
 
       <section className="wl-top">
-        <div className="wl-card">
-          <div className="row between">
-            <span className="strong">Your wallet</span>
-            <Badge
-              status={wrongChain ? "Waiting" : "Completed"}
-              label={wrongChain ? "Wrong network" : LIVE.chainName}
-              className="glass"
-            />
+        {trial ? (
+          <div className="wl-card">
+            <div className="row between">
+              <span className="strong">No wallet connected</span>
+              <Badge status="Waiting" label="Free trial" className="glass" />
+            </div>
+            <p className="small c2">
+              Your trial plans are paid from free test credits. Connect a wallet to pay with your own test USDC and to
+              have proofs settle to your address.
+            </p>
+            {connectWallet.error && (
+              <p className="small cr" role="alert">
+                {connectWallet.error}
+              </p>
+            )}
+            <div>
+              <Button variant="primary" onClick={connectWallet.connect}>
+                {connectWallet.busy ? "Waiting for your wallet…" : "Connect a wallet"}
+              </Button>
+            </div>
           </div>
-          <div className="col g4">
-            <span className="small c2">Test USDC</span>
-            <span className="wl-balance">
-              <span data-testid="usdc-balance">{balances ? formatUsdc(balances.usdc) : "…"}</span>{" "}
-              <span className="wl-unit">USDC</span>
-            </span>
-            <span className="small c2">
-              Gas:{" "}
-              <span data-testid="eth-balance">{balances ? Number(formatEther(balances.eth)).toFixed(4) : "…"}</span>{" "}
-              test ETH
-            </span>
+        ) : (
+          <div className="wl-card">
+            <div className="row between">
+              <span className="strong">Your wallet</span>
+              <Badge
+                status={wrongChain ? "Waiting" : "Completed"}
+                label={wrongChain ? "Wrong network" : LIVE.chainName}
+                className="glass"
+              />
+            </div>
+            <div className="col g4">
+              <span className="small c2">Test USDC</span>
+              <span className="wl-balance">
+                <span data-testid="usdc-balance">{balances ? formatUsdc(balances.usdc) : "…"}</span>{" "}
+                <span className="wl-unit">USDC</span>
+              </span>
+              <span className="small c2">
+                Gas:{" "}
+                <span data-testid="eth-balance">{balances ? Number(formatEther(balances.eth)).toFixed(4) : "…"}</span>{" "}
+                test ETH
+              </span>
+            </div>
+            <div className="row between">
+              <span className="mono wl-address">{address}</span>
+              <button
+                type="button"
+                className="row g6 small c2 wl-copy"
+                onClick={() => {
+                  if (address) copy(address, "Address copied");
+                }}
+              >
+                Copy
+              </button>
+            </div>
           </div>
-          <div className="row between">
-            <span className="mono wl-address">{address}</span>
-            <button
-              type="button"
-              className="row g6 small c2 wl-copy"
-              onClick={() => {
-                if (address) copy(address, "Address copied");
-              }}
-            >
-              Copy
-            </button>
-          </div>
-        </div>
+        )}
 
         <div className="card pad24 col g16">
           <h2 className="title">Free credits</h2>
@@ -115,20 +149,22 @@ export function LiveWallet() {
         </div>
       </section>
 
-      <section className="card pad24 col g12">
-        <h2 className="title">Get testnet funds</h2>
-        <p className="small c2">
-          Gas on {LIVE.chainName} needs test ETH; plans are paid in test USDC. Both are free from these faucets.
-        </p>
-        <div className="row g12">
-          <a className="btn secondary" href={LIVE.faucets.eth} target="_blank" rel="noreferrer">
-            Get test ETH
-          </a>
-          <a className="btn secondary" href={LIVE.faucets.usdc} target="_blank" rel="noreferrer">
-            Get test USDC
-          </a>
-        </div>
-      </section>
+      {!trial && (
+        <section className="card pad24 col g12">
+          <h2 className="title">Get testnet funds</h2>
+          <p className="small c2">
+            Gas on {LIVE.chainName} needs test ETH; plans are paid in test USDC. Both are free from these faucets.
+          </p>
+          <div className="row g12">
+            <a className="btn secondary" href={LIVE.faucets.eth} target="_blank" rel="noreferrer">
+              Get test ETH
+            </a>
+            <a className="btn secondary" href={LIVE.faucets.usdc} target="_blank" rel="noreferrer">
+              Get test USDC
+            </a>
+          </div>
+        </section>
+      )}
     </>
   );
 }

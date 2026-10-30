@@ -44,8 +44,11 @@ export function AccountMenu() {
       {open && (
         <div id={menuId} className="account-menu page-enter" role="menu">
           <div className="account-who">
-            <span className="strong">{identity.name ?? "Your wallet"}</span>
-            <span className="mono-s c3">{identity.address || identity.addressShort}</span>
+            <span className="strong">{identity.name ?? (identity.trial ? "Free trial" : "Your wallet")}</span>
+            <span className="mono-s c3">{identity.detail || identity.addressShort}</span>
+            {identity.address && identity.detail !== identity.address && (
+              <span className="mono-s c3">{identity.address}</span>
+            )}
           </div>
           <button type="button" role="menuitem" className="account-item" onClick={signOut}>
             <Icon name="external" size={14} />

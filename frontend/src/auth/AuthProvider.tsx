@@ -7,7 +7,14 @@ import type { Address } from "viem";
 import { onSessionEnded } from "../api/client";
 import { signOutLive, watchAccount } from "../chain/wallet";
 import { DATA_MODE } from "../config/live";
-import { checkSession } from "./liveSession";
+import {
+  fetchAccount,
+  isTrialSession,
+  sameAddress,
+  sessionFromAccount,
+  type Account,
+  type AccountCheck,
+} from "./account";
 import { readSession, writeSession, type Session } from "./session";
 import { SignOutSplash } from "./SignOutSplash";
 
@@ -19,8 +26,18 @@ type SplashPhase = "hidden" | "in" | "out";
 export function AuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const [session, setSession] = useState<Session | null>(readSession);
+  const [account, setAccount] = useState<Account | null>(null);
+  // On live data the server is asked once, at load, whether this browser already holds a session cookie (it does
+  // after GitHub or Google sends the browser back). Until then the dashboard must not offer the Connect window.
+  const [ready, setReady] = useState(DATA_MODE !== "live");
   const [splash, setSplash] = useState<SplashPhase>("hidden");
   const timers = useRef<number[]>([]);
+  const sessionRef = useRef(session);
+  const asked = useRef(false);
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
 
   useEffect(
     () => () => {
@@ -36,6 +53,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(next);
   }, []);
 
+  const endSession = useCallback(() => {
+    writeSession(null);
+    setSession(null);
+    setAccount(null);
+  }, []);
+
+  // The server is the truth about who is signed in. A session it does not know ends here; one it describes
+  // differently (a wallet was connected, or the cookie belongs to someone else) replaces what the browser remembered.
+  const adopt = useCallback(
+    (check: AccountCheck) => {
+      if (check.status === "expired") {
+        endSession();
+        return;
+      }
+      if (check.status !== "valid") return; // the API cannot be asked: keep what the browser remembers
+      setAccount(check.account);
+      const current = sessionRef.current;
+      if (current && sameAddress(current.address, check.account.address)) return;
+      const next = sessionFromAccount(check.account, current?.since);
+      writeSession(next);
+      setSession(next);
+    },
+    [endSession],
+  );
+
+  const refreshAccount = useCallback(async () => {
+    if (DATA_MODE !== "live") return;
+    adopt(await fetchAccount());
+  }, [adopt]);
+
   const signOut = useCallback(() => {
     if (DATA_MODE === "live") void signOutLive();
     // The splash covers the dashboard; the session ends behind it, then the
@@ -46,8 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     timers.current.push(
       window.setTimeout(() => {
         void navigate(paths.landing);
-        writeSession(null);
-        setSession(null);
+        endSession();
         setSplash("out");
       }, hold),
       window.setTimeout(
@@ -57,41 +103,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hold + (reduced ? 0 : SPLASH.fadeOutMs),
       ),
     );
-  }, [navigate]);
+  }, [navigate, endSession]);
 
   // On live data the remembered session must still exist on the server: its cookie expires after 12 hours and
-  // does not survive the API losing its database. A server that cannot be reached leaves the session alone.
+  // does not survive the API losing its database. Asked at load, and again when the session's address changes (a
+  // wallet was connected). A signed-out browser is not asked again: only `refreshAccount` restores a session.
+  const address = session?.address ?? null;
   useEffect(() => {
-    if (DATA_MODE !== "live" || !session) return;
+    if (DATA_MODE !== "live") return;
+    if (address === null && asked.current) return;
+    asked.current = true;
     let cancelled = false;
-    void checkSession(session.address).then((result) => {
-      if (cancelled || result !== "expired") return;
-      writeSession(null);
-      setSession(null);
+    void fetchAccount().then((check) => {
+      if (cancelled) return;
+      adopt(check);
+      setReady(true);
     });
     return () => {
       cancelled = true;
     };
-  }, [session]);
+  }, [address, adopt]);
 
   // Any API call that comes back 401 means the server dropped the session since the check above: end it here too,
   // quietly (no sign-out splash, which is for someone choosing to leave).
   useEffect(() => {
     if (DATA_MODE !== "live") return;
-    onSessionEnded(() => {
-      writeSession(null);
-      setSession(null);
-    });
+    onSessionEnded(endSession);
     return () => {
       onSessionEnded(null);
     };
-  }, []);
+  }, [endSession]);
 
   // On live data, a different wallet account ends the session: the signed-in address must be the one that funds.
+  // A session with no wallet (the free trial) has no wallet account to watch.
+  const actsAsWallet =
+    !!session && (account ? !isTrialSession(account, session.address) : session.method === "browser");
   useEffect(() => {
-    if (DATA_MODE !== "live" || !session) return;
-    return watchAccount(session.address as Address, signOut);
-  }, [session, signOut]);
+    if (DATA_MODE !== "live" || !address || !actsAsWallet) return;
+    return watchAccount(address as Address, signOut);
+  }, [address, actsAsWallet, signOut]);
 
   // The dashboard routes show the Connect window themselves while signed out,
   // so opening it is just a navigation.
@@ -102,7 +152,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [navigate],
   );
 
-  const value = useMemo(() => ({ session, signIn, signOut, openConnect }), [session, signIn, signOut, openConnect]);
+  const value = useMemo(
+    () => ({ session, account, ready, refreshAccount, signIn, signOut, openConnect }),
+    [session, account, ready, refreshAccount, signIn, signOut, openConnect],
+  );
   return (
     <AuthContext.Provider value={value}>
       {children}

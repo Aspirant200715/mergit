@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Address } from "viem";
 import { approvePlan, editPlan } from "../../../api/client";
 import type { AgentInfo, Funding, Plan } from "../../../api/types";
+import { isTrialSession } from "../../../auth/account";
 import { useAuth } from "../../../auth/context";
 import { formatUsdc } from "../../../chain/funding";
 import { useCredits } from "../../../chain/useCredits";
@@ -22,6 +23,7 @@ import { TaskDraftCard } from "./TaskDraftCard";
 import { useSubmit } from "./useSubmit";
 
 const FUNDING_OPTIONS = ["Wallet", "Free credits"] as const;
+const CREDITS_ONLY = ["Free credits"] as const;
 type FundingOption = (typeof FUNDING_OPTIONS)[number];
 const FUNDING: Record<FundingOption, Funding> = { Wallet: "wallet", "Free credits": "credits" };
 
@@ -39,10 +41,13 @@ export function DraftPlanEditor({
   agents: AgentInfo[] | null;
   onChanged: () => void;
 }) {
-  const { session } = useAuth();
+  const { session, account } = useAuth();
   const { credits, error: creditsError } = useCredits((session?.address ?? null) as Address | null);
+  // A free-trial account has no wallet: its plans can only be paid from credits, and the API refuses anything else.
+  const trial = isTrialSession(account, session?.address);
   const [forms, setForms] = useState<TaskForm[]>(() => toForms(plan));
-  const [funding, setFunding] = useState<FundingOption>("Wallet");
+  const [chosen, setFunding] = useState<FundingOption>("Wallet");
+  const funding: FundingOption = trial ? "Free credits" : chosen;
   const { busy, problems, setProblems, submit } = useSubmit();
   const edited = hasEdits(plan, forms);
   const total = totalBudget(forms);
@@ -94,7 +99,12 @@ export function DraftPlanEditor({
         </div>
         <div className="col g8">
           <span className="cap">Pay with</span>
-          <Segmented options={FUNDING_OPTIONS} value={funding} onChange={setFunding} label="Pay with" />
+          <Segmented
+            options={trial ? CREDITS_ONLY : FUNDING_OPTIONS}
+            value={funding}
+            onChange={setFunding}
+            label="Pay with"
+          />
           <span className="small c3">
             {funding === "Wallet"
               ? "You fund the plan from your wallet after approving. Nothing moves until you confirm it there."

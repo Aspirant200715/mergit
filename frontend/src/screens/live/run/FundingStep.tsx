@@ -1,5 +1,6 @@
 import type { Address } from "viem";
 import type { PlanDetail } from "../../../api/types";
+import { isTrialSession } from "../../../auth/account";
 import { useAuth } from "../../../auth/context";
 import { formatUsdc } from "../../../chain/funding";
 import { useFundPlan, type FundStatus } from "../../../chain/useFundPlan";
@@ -20,11 +21,13 @@ const FUND_STATUS: Record<Exclude<FundStatus, "idle" | "error">, string> = {
  * instead or close the plan (issue #23).
  */
 export function FundingStep({ detail, onClosed }: { detail: PlanDetail; onClosed: () => void }) {
-  const { session } = useAuth();
+  const { session, account } = useAuth();
+  // A free-trial account has no wallet to fall back on when the gateway refuses its credits.
+  const trial = isTrialSession(account, session?.address);
   const total = BigInt(detail.total_budget_usdc_units ?? "0");
   const { fund, status, error } = useFundPlan((session?.address ?? null) as Address | null, detail.plan_id, total);
   const denial = creditsDenial(detail.money_events);
-  const fromWallet = detail.funding === "wallet" || denial !== null;
+  const fromWallet = !trial && (detail.funding === "wallet" || denial !== null);
   const amount = `${formatUsdc(total)} USDC`;
 
   return (
@@ -32,10 +35,13 @@ export function FundingStep({ detail, onClosed }: { detail: PlanDetail; onClosed
       <h2 className="title">{fromWallet ? `Fund ${amount}` : "Paying with free credits"}</h2>
       {denial && (
         <p className="ca strong" role="alert">
-          Free credits were refused: {denial} You can pay from your wallet instead, or close the plan.
+          Free credits were refused: {denial}{" "}
+          {trial
+            ? "Close the plan, or connect a wallet on the Wallet page and start a new one."
+            : "You can pay from your wallet instead, or close the plan."}
         </p>
       )}
-      {!fromWallet && (
+      {!fromWallet && denial === null && (
         <p className="c2 row g8" role="status">
           <Icon name="running" size={14} className="spin" color="var(--azure)" />
           Waiting for the gateway to fund {amount} from your free credits.

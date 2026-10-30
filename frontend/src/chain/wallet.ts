@@ -10,8 +10,8 @@ export function apiBase(url: string = LIVE.apiUrl): string {
   return url.replace(/\/+$/, "");
 }
 
-/** Signs in with the browser wallet: connect, check the chain, sign an EIP-4361 message, open a session. */
-export async function connectAndSignIn(onMessage?: (message: string) => void): Promise<Session> {
+/** Connects the browser wallet, checks the chain and has it sign an EIP-4361 message for a fresh server nonce. */
+async function signWithWallet(onMessage?: (message: string) => void) {
   const provider = injected();
   if (!provider)
     throw new Error("No browser wallet found. Install one such as MetaMask or Coinbase Wallet, then try again.");
@@ -39,7 +39,19 @@ export async function connectAndSignIn(onMessage?: (message: string) => void): P
   onMessage?.(message);
   // personal_sign takes the message hex-encoded (EIP-1474); the wallet shows it as text.
   const signature = await provider.request({ method: "personal_sign", params: [toHex(message), address] });
+  return { api, address, message, signature };
+}
 
+const walletSession = (address: Address): Session => ({
+  address,
+  addressShort: short(address),
+  method: "browser",
+  since: Date.now(),
+});
+
+/** Signs in with the browser wallet: connect, check the chain, sign an EIP-4361 message, open a session. */
+export async function connectAndSignIn(onMessage?: (message: string) => void): Promise<Session> {
+  const { api, address, message, signature } = await signWithWallet(onMessage);
   const verify = await fetch(`${api}/v0/auth/verify`, {
     method: "POST",
     credentials: "include",
@@ -47,7 +59,21 @@ export async function connectAndSignIn(onMessage?: (message: string) => void): P
     body: JSON.stringify({ message, signature }),
   });
   if (!verify.ok) throw new Error("Mergit did not accept the signature. Try signing in again.");
-  return { address, addressShort: short(address), method: "browser", since: Date.now() };
+  return walletSession(address);
+}
+
+/** Connects a wallet to the account that is already signed in; from then on the session acts as that wallet. */
+export async function connectAndLinkWallet(onMessage?: (message: string) => void): Promise<Session> {
+  const { api, address, message, signature } = await signWithWallet(onMessage);
+  const link = await fetch(`${api}/v0/auth/wallet/link`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ message, signature }),
+  });
+  if (link.status === 409) throw new Error("That wallet already belongs to another Mergit account.");
+  if (!link.ok) throw new Error("Mergit did not accept the signature. Try connecting the wallet again.");
+  return walletSession(address);
 }
 
 export async function signOutLive(): Promise<void> {

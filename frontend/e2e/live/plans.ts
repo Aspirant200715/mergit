@@ -170,7 +170,7 @@ export async function mockPlanApi(
     const method = request.method();
     if (method === "OPTIONS") return route.fulfill({ status: 204, headers: CORS(route) });
     const path = new URL(request.url()).pathname;
-    if (path.startsWith("/v0/auth/")) return route.fallback();
+    if (path.startsWith("/v0/auth/") || path.startsWith("/v0/account/")) return route.fallback();
     const body: unknown = request.postData() ? request.postDataJSON() : null;
     calls.push({ method, path, body });
 

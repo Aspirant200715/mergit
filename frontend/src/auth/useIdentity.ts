@@ -3,6 +3,6 @@ import { useAuth } from "./context";
 import { identityOf, type Identity } from "./identity";
 
 export function useIdentity(): Identity {
-  const { session } = useAuth();
-  return identityOf(DATA_MODE, session);
+  const { session, account } = useAuth();
+  return identityOf(DATA_MODE, session, account);
 }

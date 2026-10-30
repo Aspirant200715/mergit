@@ -3,6 +3,7 @@ import type { Address } from "viem";
 import { formatEther } from "viem";
 import { paths } from "../../app/paths";
 import { usePlans } from "../../api/usePlans";
+import { isTrialSession } from "../../auth/account";
 import { useAuth } from "../../auth/context";
 import { useBalances } from "../../chain/useBalances";
 import { useCommitments } from "../../chain/useCommitments";
@@ -23,10 +24,12 @@ const usd = (micros: bigint) => `$${(Number(micros) / 1_000_000).toFixed(4)}`;
 
 /** The dashboard on live data: your credits and balances, your runs, and the receipts committed on chain. */
 export function LiveOverview() {
-  const { session } = useAuth();
-  const address = (session?.address ?? null) as Address | null;
-  const balances = useBalances(address);
-  const { credits, error: creditsError } = useCredits(address);
+  const { session, account } = useAuth();
+  const creditsFor = (session?.address ?? null) as Address | null;
+  // A free-trial account has no wallet to read balances from; its credits are under the trial address.
+  const trial = isTrialSession(account, session?.address);
+  const balances = useBalances(trial ? null : creditsFor);
+  const { credits, error: creditsError } = useCredits(creditsFor);
   const { plans, error: plansError } = usePlans();
   const { rows: receipts, error: receiptsError } = useCommitments();
   const counts = plans ? summarizePlans(plans) : null;
@@ -82,14 +85,26 @@ export function LiveOverview() {
 
         <div className="card pad24 col between ov-stat">
           <span className="c2 strong">Your wallet</span>
-          <div className="col g4">
-            <span className="stat" data-testid="usdc-balance">
-              {balances ? formatUsdc(balances.usdc) : "…"}
-            </span>
-            <span className="small c3">
-              test USDC, {balances ? Number(formatEther(balances.eth)).toFixed(4) : "…"} ETH for gas
-            </span>
-          </div>
+          {trial ? (
+            <div className="col g4">
+              <span className="stat">None</span>
+              <span className="small c3">
+                <Link to={paths.wallet} className="link">
+                  Connect a wallet
+                </Link>{" "}
+                to pay with your own test USDC.
+              </span>
+            </div>
+          ) : (
+            <div className="col g4">
+              <span className="stat" data-testid="usdc-balance">
+                {balances ? formatUsdc(balances.usdc) : "…"}
+              </span>
+              <span className="small c3">
+                test USDC, {balances ? Number(formatEther(balances.eth)).toFixed(4) : "…"} ETH for gas
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="card pad24 col between ov-stat">

@@ -1,7 +1,8 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { paths } from "../app/paths";
 import { useAuth } from "../auth/context";
-import { signInOptions } from "../auth/signInOptions";
+import { SignInMethods } from "../auth/SignInMethods";
+import { signInErrorMessage } from "../auth/signInOptions";
 import { demoSession, type SignInMethod } from "../auth/session";
 import { DATA_MODE } from "../config/live";
 import { AgentAvatar } from "../components/AgentAvatar";
@@ -23,7 +24,9 @@ export function SignIn() {
     void navigate(paths.app);
   };
   const { receipt } = signInPitch;
-  const options = signInOptions(DATA_MODE);
+  const live = DATA_MODE === "live";
+  const [params] = useSearchParams();
+  const failure = signInErrorMessage(params.get("error"));
 
   return (
     <div className="si">
@@ -67,81 +70,94 @@ export function SignIn() {
         <div className="si-toggle">
           <ThemeToggle />
         </div>
-        <form
-          className="col g16 si-form page-enter"
-          onSubmit={(e) => {
-            e.preventDefault();
-            enter("email");
-          }}
-        >
-          <div className="col g6">
-            <h2 className="heading">Sign in to Mergit</h2>
-            <p className="c2">
-              {options.accounts
-                ? "Use your work account or connect a wallet. The account options here are a demo: they sign you in as a demo account."
-                : "Connect your wallet to sign in. You sign a message; it costs nothing and sends no transaction."}
-            </p>
+        {live ? (
+          <div className="col g16 si-form page-enter">
+            <div className="col g6">
+              <h2 className="heading">Sign in to Mergit</h2>
+              <p className="c2">
+                Use GitHub, Google or your email to create an account, then start a free trial or connect a wallet. Or
+                sign in with a wallet directly: you sign a message, which costs nothing and sends no transaction.
+              </p>
+            </div>
+            {failure && (
+              <p className="small cr" role="alert">
+                {failure}
+              </p>
+            )}
+            <SignInMethods
+              onSignedIn={() => {
+                void navigate(paths.app);
+              }}
+            />
           </div>
-          {options.accounts && (
-            <>
-              <button
-                type="button"
-                className="si-provider"
-                onClick={() => {
-                  enter("github");
-                }}
-              >
-                <Icon name="github" size={18} />
-                Continue with GitHub
-              </button>
-              <button
-                type="button"
-                className="si-provider"
-                onClick={() => {
-                  enter("google");
-                }}
-              >
-                <span className="si-google">G</span>
-                Continue with Google
-              </button>
-            </>
-          )}
-          <button
-            type="button"
-            className="si-provider"
-            onClick={() => {
-              openConnect();
+        ) : (
+          <form
+            className="col g16 si-form page-enter"
+            onSubmit={(e) => {
+              e.preventDefault();
+              enter("email");
             }}
           >
-            <Icon name="wallet" size={18} />
-            Continue with wallet
-          </button>
-          {options.accounts && (
-            <>
-              <div className="row g12 small c3" aria-hidden="true">
-                <i className="si-rule" />
-                or
-                <i className="si-rule" />
-              </div>
-              <label className="col g6">
-                <span className="small c2 strong">Work email</span>
-                <span className="input">
-                  <Icon name="mail" size={16} />
-                  <input type="email" name="email" required placeholder="you@company.com" autoComplete="email" />
-                </span>
-              </label>
-              <button type="submit" className="btn primary block">
-                Continue
-              </button>
-              <span className="small c3 si-signup">
-                New here?{" "}
-                <Button variant="link" compact>
-                  Create an account
-                </Button>
+            <div className="col g6">
+              <h2 className="heading">Sign in to Mergit</h2>
+              <p className="c2">
+                Use your work account or connect a wallet. The account options here are a demo: they sign you in as a
+                demo account.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="si-provider"
+              onClick={() => {
+                enter("github");
+              }}
+            >
+              <Icon name="github" size={18} />
+              Continue with GitHub
+            </button>
+            <button
+              type="button"
+              className="si-provider"
+              onClick={() => {
+                enter("google");
+              }}
+            >
+              <span className="si-google">G</span>
+              Continue with Google
+            </button>
+            <button
+              type="button"
+              className="si-provider"
+              onClick={() => {
+                openConnect();
+              }}
+            >
+              <Icon name="wallet" size={18} />
+              Continue with wallet
+            </button>
+            <div className="row g12 small c3" aria-hidden="true">
+              <i className="si-rule" />
+              or
+              <i className="si-rule" />
+            </div>
+            <label className="col g6">
+              <span className="small c2 strong">Work email</span>
+              <span className="input">
+                <Icon name="mail" size={16} />
+                <input type="email" name="email" required placeholder="you@company.com" autoComplete="email" />
               </span>
-            </>
-          )}
-        </form>
+            </label>
+            <button type="submit" className="btn primary block">
+              Continue
+            </button>
+            <span className="small c3 si-signup">
+              New here?{" "}
+              <Button variant="link" compact>
+                Create an account
+              </Button>
+            </span>
+          </form>
+        )}
       </section>
     </div>
   );
