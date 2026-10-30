@@ -1,0 +1,49 @@
+name: deploy
+
+# Redeploys the Hetzner server (deploy/server/README.md) after a push to main: SSH in and run deploy/server/update.sh.
+# Render did this on every push; the server needs this workflow instead.
+#
+# Repository secrets:
+#   DEPLOY_HOST        server hostname or IPv4
+#   DEPLOY_USER        login user on the server
+#   DEPLOY_SSH_KEY     private key of a key made only for this (see the README, "Automatic deploys")
+#   DEPLOY_KNOWN_HOSTS output of `ssh-keyscan -t ed25519 <host>`, so the host key is pinned and not trusted on first use
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      what:
+        description: "What to update"
+        type: choice
+        options: [all, services, web, app]
+        default: all
+
+permissions:
+  contents: read
+
+# Never cancel a deploy half-way through a build; a newer push waits its turn, and update.sh pulls the latest main anyway.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Install the key and the pinned host key
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Run update.sh on the server
+        env:
+          TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
+          WHAT: ${{ inputs.what || 'all' }}
+        run: ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 "$TARGET" "$WHAT"

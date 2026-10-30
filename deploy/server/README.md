@@ -81,7 +81,26 @@ deploy/server/update.sh services   # only the Rust services and Caddy (fast)
 deploy/server/update.sh app        # only the frontend: web or app
 ```
 
-Render deployed on every push. This does not: someone has to run the update.
+Render deployed on every push. The server does not by itself, so `.github/workflows/deploy.yml` runs `update.sh` over SSH
+on every push to `main` (and by hand from the Actions tab, where you can pick `services`, `web` or `app`).
+
+### Automatic deploys: one-time setup
+
+1. On your machine, make a key used for nothing else: `ssh-keygen -t ed25519 -N '' -f deploy_key -C github-deploy`.
+2. On the server, add the public key to `~/.ssh/authorized_keys` as a single line that can run `update.sh` and nothing
+   else (the workflow passes `all`, `services`, `web` or `app` as the "command"; `update.sh` rejects anything else):
+
+   ```
+   restrict,command="cd ~/mergit/mergit && deploy/server/update.sh \"${SSH_ORIGINAL_COMMAND:-all}\"" ssh-ed25519 AAAA... github-deploy
+   ```
+
+3. In the GitHub repo, Settings, Secrets and variables, Actions, add `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`
+   (the private key file) and `DEPLOY_KNOWN_HOSTS` (`ssh-keyscan -t ed25519 <host>`). Then delete the local key files.
+4. Port 22 must be reachable from GitHub's runners; the Hetzner firewall (`mergit-fw`) currently allows it.
+
+What this does not do: it does not wait for the `control-plane` and `frontend` checks, so a push that breaks them still
+deploys. A build that fails leaves the running containers as they were, but a change that builds and misbehaves goes
+live. To gate on CI, protect `main` and merge through pull requests.
 
 ## Notes
 
