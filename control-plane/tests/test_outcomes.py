@@ -270,6 +270,37 @@ def test_passing_both_tasks_marks_the_plan_done(database_url: str) -> None:
     run(database_url, body)
 
 
+def test_a_finished_plan_is_closed_in_escrow_exactly_once(database_url: str) -> None:
+    """The unspent part of a plan's escrow only comes back when the gateway receives `plan.closed`. A plan
+    that finishes normally must send it, the same as one the requester abandons, and once only."""
+
+    async def closed_events(pool: Pool, plan_id: str) -> list[tuple[str, str]]:
+        async with pool.connection() as conn:
+            cur = await conn.execute(
+                "SELECT type, plan_id FROM outbox WHERE plan_id = %s AND type = 'plan.closed'", (plan_id,)
+            )
+            return [(str(r[0]), str(r[1])) for r in await cur.fetchall()]
+
+    async def body(pool: Pool) -> None:
+        async with pool.connection() as conn, conn.transaction():
+            plan = await _plan(conn, [task(0)], {0: ["1"]})
+            t0 = await _dispatch_and_escrow(conn, plan, 0, 1, "1")
+            await conn.execute("UPDATE plans SET state = 'running' WHERE plan_uuid = %s", (plan.plan_uuid,))
+            await conn.execute(
+                "UPDATE jobs SET status = 'done', phi_holds = true, finished_at = now() WHERE task_id = %s",
+                (t0,),
+            )
+        assert await closed_events(pool, plan.plan_id) == []
+
+        await _process(pool)
+        assert await closed_events(pool, plan.plan_id) == [("plan.closed", plan.plan_id)]
+
+        await _process(pool)  # nothing left to react to; still exactly one
+        assert await closed_events(pool, plan.plan_id) == [("plan.closed", plan.plan_id)]
+
+    run(database_url, body)
+
+
 def test_a_pass_unblocks_a_dependent_task(database_url: str) -> None:
     async def body(pool: Pool) -> None:
         async with pool.connection() as conn, conn.transaction():

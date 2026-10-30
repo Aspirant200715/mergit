@@ -124,11 +124,21 @@ async def process_one(conn: AsyncConnection[TupleRow], job: FinishedJob, setting
 
     dispatched = await dispatch.dispatch_ready(conn, plan, settings)
     if not dispatched and plan.state in ("funded", "running") and await _all_passed(conn, plan.plan_uuid):
-        await conn.execute(
+        cur = await conn.execute(
             "UPDATE plans SET state = 'done', updated_at = now()"
-            " WHERE plan_uuid = %s AND state IN ('funded', 'running')",
+            " WHERE plan_uuid = %s AND state IN ('funded', 'running') RETURNING 1",
             (plan.plan_uuid,),
         )
+        # The unspent part of the plan's escrow only returns to the requester when the gateway closes the
+        # plan. Only the call that moved the plan to `done` sends it, so a repeat cannot send a second.
+        if await cur.fetchone() is not None:
+            await enqueue(
+                conn,
+                "plan.closed",
+                {"plan_id": plan.plan_id},
+                plan_id=plan.plan_id,
+                retry_window_s=settings.event_retry_window_s,
+            )
 
 
 async def process_due(conn: AsyncConnection[TupleRow], settings: Settings, limit: int = 20) -> int:
