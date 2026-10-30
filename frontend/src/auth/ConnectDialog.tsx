@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { paths } from "../app/paths";
 import { Icon } from "../components/Icon";
 import { MergitSymbol } from "../components/MergitLogo";
+import { MergitLoader } from "../components/MergitLoader";
 import { connectAndSignIn } from "../chain/wallet";
 import { injected } from "../chain/client";
 import { DATA_MODE } from "../config/live";
@@ -153,7 +154,7 @@ export function ConnectDialog() {
             </pre>
             {step.name === "signing" ? (
               <span className="row g8 small c2" role="status">
-                <Icon name="running" size={14} className="spin" color="var(--azure)" />
+                <MergitLoader size={22} label="Waiting for signature" />
                 Waiting for signature…
               </span>
             ) : (

@@ -6,7 +6,7 @@ export function SignOutSplash({ leaving }: { leaving: boolean }) {
   return (
     <div className={`signout${leaving ? " leaving" : ""}`} role="status" aria-label="Signing out">
       <div className="signout-card">
-        <MergitLogo height={56} title="" className="signout-brand" />
+        <MergitLogo height={56} title="" className="signout-brand" motion="once" />
         <p className="signout-tag">Real work. Verifiable proof.</p>
         <p className="signout-chain">Proof settlement on an {CHAIN_LABEL}</p>
       </div>

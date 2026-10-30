@@ -5,6 +5,7 @@ import { errorMessage, listPlans } from "../../../api/client";
 import type { PlanSummary } from "../../../api/types";
 import { formatUsdc } from "../../../chain/funding";
 import { Button } from "../../../components/Button";
+import { MergitLoader } from "../../../components/MergitLoader";
 import { PageHeader } from "../../../components/PageHeader";
 import { PlanBadge } from "./badges";
 import "../../../styles/screens/live-run.css";
@@ -42,7 +43,12 @@ export function LiveRuns() {
       />
       <section className="card">
         {error && <p className="c2 empty">{error}</p>}
-        {!error && plans === null && <p className="c2 empty">Loading your runs…</p>}
+        {!error && plans === null && (
+          <div className="c2 empty row g12 loading-row">
+            <MergitLoader size={28} label="Loading your runs" />
+            <span>Loading your runs…</span>
+          </div>
+        )}
         {plans?.length === 0 && <p className="c2 empty">No runs yet. Start one to see it here.</p>}
         {plans && plans.length > 0 && (
           <ul className="lr-list">

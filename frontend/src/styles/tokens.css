@@ -6,6 +6,17 @@
 :root,
 :root[data-theme="light"] {
   color-scheme: light;
+  /* Colour logo (brand kit 02-logo-colour), light backgrounds. */
+  --mg-top-a: #8be8c6;
+  --mg-top-b: #4fd3a3;
+  --mg-bot-a: #cfc5ff;
+  --mg-bot-b: #a794ff;
+  --mg-face-1: #7de3be;
+  --mg-face-2: #a9eed5;
+  --mg-face-3: #0e9f74;
+  --mg-face-4: #62b8e6;
+  --mg-face-5: #8fa2f6;
+  --mg-face-6: #b19fff;
   --canvas: #f4f5f7;
   --surface: #ffffff;
   --soft: #f7f8fa;
@@ -88,6 +99,12 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
+  /* Colour logo, dark backgrounds: paler pills so they hold against the night surface. */
+  --mg-top-a: #e6fbf2;
+  --mg-top-b: #c6f1df;
+  --mg-bot-a: #e9e5ff;
+  --mg-bot-b: #d2caff;
+  --mg-face-3: #3ccb98;
   --canvas: #0b0c0f;
   --surface: #121317;
   --soft: #16181d;

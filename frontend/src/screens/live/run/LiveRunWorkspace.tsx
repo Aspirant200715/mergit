@@ -3,6 +3,7 @@ import { paths } from "../../../app/paths";
 import { useAgents } from "../../../api/useAgents";
 import { usePlan, type StreamStatus } from "../../../api/usePlan";
 import type { AgentInfo, PlanDetail, StepEvent } from "../../../api/types";
+import { MergitLoader } from "../../../components/MergitLoader";
 import { PageHeader } from "../../../components/PageHeader";
 import { PlanBadge } from "./badges";
 import { DraftPlanEditor } from "./DraftPlanEditor";
@@ -29,9 +30,16 @@ export function LiveRunWorkspace() {
   if (!detail) {
     return (
       <section className="card pad24 rw-empty">
-        <p className="c2" role={error ? "alert" : "status"}>
-          {error ?? "Loading the plan…"}
-        </p>
+        {error ? (
+          <p className="c2" role="alert">
+            {error}
+          </p>
+        ) : (
+          <div className="c2 row g12 loading-row">
+            <MergitLoader size={28} label="Loading the plan" />
+            <span>Loading the plan…</span>
+          </div>
+        )}
       </section>
     );
   }

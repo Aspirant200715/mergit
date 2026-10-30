@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import type { Address, Hex } from "viem";
+import { MergitLoader } from "../../components/MergitLoader";
 import { PageHeader } from "../../components/PageHeader";
 import { publicClient } from "../../chain/client";
 import { identityAbi } from "../../chain/abi";
@@ -79,7 +80,12 @@ export function LiveProofDetail() {
         crumb={{ label: "Proofs", to: "/app/proofs", id: task.slice(0, 10) }}
       />
       <section className="card pad24 col g12">
-        {view.kind === "loading" && <p className="c2">Fetching and verifying the receipt…</p>}
+        {view.kind === "loading" && (
+          <div className="c2 row g12 loading-row">
+            <MergitLoader size={28} label="Verifying the receipt" />
+            <span>Fetching and verifying the receipt…</span>
+          </div>
+        )}
         {view.kind === "uncommitted" && <p className="c2">No receipt is committed on chain for this task.</p>}
         {view.kind === "missing" && (
           <p className="c2">The receipt store has no body for this task. Without it the receipt cannot be audited.</p>
