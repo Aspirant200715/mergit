@@ -281,3 +281,32 @@ def test_header_phi_hash_comes_from_the_binding(sandbox, publisher, repo_url):
     header = receipt["header"]
     assert header["phi_hash"] == mergit_receipt.phi_hash(json.dumps(header["phi"]))
     assert header["attestation"]["kind"] == "unattested"
+
+
+def test_passing_task_carries_its_patch(sandbox, publisher, repo_url):
+    outcome, _, _ = run(sandbox, publisher, [turn(FIX), turn(("finish", {}))], repo_url)
+    assert outcome.holds is True
+    assert outcome.patch is not None
+    assert "+    return amount - fee" in outcome.patch
+    assert "payments/refund.py" in outcome.patch
+
+
+def test_failing_task_carries_no_patch(sandbox, publisher, repo_url):
+    outcome, _, _ = run(sandbox, publisher, [turn(("finish", {}))], repo_url)
+    assert outcome.holds is False
+    assert outcome.patch is None
+
+
+def test_patch_over_the_cap_is_dropped_and_noted(sandbox, publisher, repo_url):
+    outcome, _, _ = run(sandbox, publisher, [turn(FIX), turn(("finish", {}))], repo_url, max_patch_bytes=10)
+    assert outcome.holds is True
+    assert outcome.patch is None
+    assert any(n.startswith("no_patch: larger than 10") for n in outcome.notes)
+
+
+def test_non_utf8_change_cannot_be_a_patch(sandbox, publisher, repo_url):
+    sandbox.workspace.write_file("payments/blob.txt", b"\xff\xfe not utf8\n")
+    outcome, _, _ = run(sandbox, publisher, [turn(FIX), turn(("finish", {}))], repo_url)
+    assert outcome.holds is True
+    assert outcome.patch is None
+    assert any("UTF-8" in n for n in outcome.notes)

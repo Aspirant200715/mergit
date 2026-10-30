@@ -31,6 +31,7 @@ from .phi import PhiRun, run_phi
 from .progress import NullProgressReporter, ProgressReporter
 from .sandbox import SandboxPort
 from .tools import TOOL_SCHEMAS, Recorder, ToolBox, ToolLimits
+from .workspace import WorkspaceError
 
 log = logging.getLogger(__name__)
 
@@ -64,6 +65,7 @@ class HarnessConfig:
     model_max_tokens: int
     max_output_bytes: int
     max_hash_bytes: int
+    max_patch_bytes: int
     tool_limits: ToolLimits
 
 
@@ -94,10 +96,27 @@ def run_task(
     notes = [outcome_note]
     if outcome_note in _INFRA_STOPS:
         holds = None  # the agent did not get a fair run, so a person decides, not the check
-    return RunOutcome(task_id=job.task_id, holds=holds, root=sealed.root, notes=notes)
+    patch = None
+    if holds is True:  # only a change that passed Φ is ever shown to the requester or turned into a PR
+        patch = _capture_patch(sandbox, cfg.max_patch_bytes, notes)
+    return RunOutcome(task_id=job.task_id, holds=holds, root=sealed.root, notes=notes, patch=patch)
 
 
 _INFRA_STOPS = {"llm_error"}
+
+
+def _capture_patch(sandbox: SandboxPort, max_bytes: int, notes: list[str]) -> str | None:
+    """The change as a patch. If it cannot be stored, the task still passed; the PR gate then refuses to
+    build a pull request from it and says why, instead of opening one with a piece missing."""
+    try:
+        patch = sandbox.workspace.diff_from_head()
+    except WorkspaceError as exc:
+        notes.append(f"no_patch: {exc}")
+        return None
+    if len(patch.encode()) > max_bytes:
+        notes.append(f"no_patch: larger than {max_bytes} bytes")
+        return None
+    return patch
 
 
 class _Spent:

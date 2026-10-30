@@ -36,16 +36,21 @@ RETURNING jobs.task_id
 _LOAD = """
 SELECT j.task_id, j.plan_uuid, p.plan_id, j."index", j.attempt, j.agent_id,
        p.requester, p.category, p.repo_url, p.ref, t.title, t.instructions, t.phi,
-       t.budget_usdc_units
+       t.budget_usdc_units, t.depends_on
 FROM jobs j
 JOIN plans p ON p.plan_uuid = j.plan_uuid
 JOIN tasks t ON t.plan_uuid = j.plan_uuid AND t."index" = j."index"
 WHERE j.task_id = %(task_id)s
 """
 
+_DEPENDENCY_PATCHES = """
+SELECT "index", patch FROM jobs
+WHERE plan_uuid = %(plan_uuid)s AND "index" = ANY(%(indexes)s) AND phi_holds = true AND patch IS NOT NULL
+"""
+
 _REPORT = """
 UPDATE jobs SET status = %(status)s, phi_holds = %(holds)s, receipt_root = %(root)s,
-                notes = %(notes)s, finished_at = now()
+                notes = %(notes)s, patch = %(patch)s, finished_at = now()
 WHERE task_id = %(task_id)s AND status = 'running' AND claimed_by = %(worker)s
 """
 
@@ -129,7 +134,18 @@ class PgJobStore:
             if claimed is None:
                 return None
             row = self._conn.execute(_LOAD, {"task_id": claimed["task_id"]}).fetchone()
-        if row is None:  # the plan or task row is missing: put nothing back, surface it
+            depends_on: list[int] = []
+            patches: dict[int, str] = {}
+            if row is not None:  # the plan or task row is missing: put nothing back, surface it
+                depends_on = [int(i) for i in row["depends_on"]]
+                if depends_on:
+                    patches = {
+                        int(r["index"]): r["patch"]
+                        for r in self._conn.execute(
+                            _DEPENDENCY_PATCHES, {"plan_uuid": row["plan_uuid"], "indexes": depends_on}
+                        ).fetchall()
+                    }
+        if row is None:
             self.fail(claimed["task_id"], "job has no plan or task row")
             return None
         return Job(
@@ -147,17 +163,30 @@ class PgJobStore:
             instructions=row["instructions"],
             phi=row["phi"],
             budget_usdc_units=int(row["budget_usdc_units"]),
+            depends_on=tuple(depends_on),
+            # "" (not a dependency's own absence) means that attempt made no tracked change to apply.
+            dependency_patches=tuple(patches.get(i, "") for i in depends_on),
         )
 
     def report(self, outcome: RunOutcome) -> None:
         """Store the Φ result (`holds` is None when Φ could not run) on the job row for O6."""
-        self._finish(outcome.task_id, "done", outcome.holds, outcome.root, "; ".join(outcome.notes))
+        self._finish(
+            outcome.task_id, "done", outcome.holds, outcome.root, "; ".join(outcome.notes), outcome.patch
+        )
 
     def fail(self, task_id: str, message: str) -> None:
         """The task could not be run or sealed. `phi_holds` stays NULL: inconclusive, a person decides."""
-        self._finish(task_id, "error", None, None, message[:2000])
+        self._finish(task_id, "error", None, None, message[:2000], None)
 
-    def _finish(self, task_id: str, status: str, holds: bool | None, root: str | None, notes: str) -> None:
+    def _finish(
+        self,
+        task_id: str,
+        status: str,
+        holds: bool | None,
+        root: str | None,
+        notes: str,
+        patch: str | None,
+    ) -> None:
         self._retrying(
             lambda: self._conn.execute(
                 _REPORT,
@@ -167,6 +196,7 @@ class PgJobStore:
                     "holds": holds,
                     "root": root,
                     "notes": notes,
+                    "patch": patch,
                     "worker": self._worker,
                 },
             )

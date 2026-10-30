@@ -19,6 +19,7 @@ making. So the host never trusts what it finds inside `work/`:
 
 from __future__ import annotations
 
+import base64
 import contextlib
 import errno
 import logging
@@ -191,21 +192,33 @@ class Workspace:
             ],
             _git_env(()),
             self._git_timeout_s,
+            cwd=self.work,
         )
         paths = {entry[3:] for entry in out.split("\x00") if len(entry) > 3}
         return sorted(paths)
 
     def diff_from_head(self) -> str:
-        """Unified diff of tracked and untracked changes, for the PR gate to show the requester."""
+        """Unified diff of tracked and untracked changes, for the PR gate to show the requester.
+
+        `--force` on the intent-to-add, or a new file a `.gitignore` covers would silently drop out of
+        this diff, even though `changed_paths` (and so the Φ check) already counts it as changed: the
+        same thing a `.gitignore` must not be able to hide from `allowed_paths` must not then go missing
+        from the patch that gets committed and dispatched to a dependent task.
+        """
         self._refuse_nested_git()
         env = _git_env(())
         base = ["--git-dir", str(self._gitdir), "--work-tree", str(self.work)]
-        _git([*base, "add", "-N", "--", "."], env, self._git_timeout_s)
-        return _git(
+        _git([*base, "add", "-N", "--force", "--", "."], env, self._git_timeout_s, cwd=self.work)
+        raw = _git_raw(
             [*base, "diff", "--no-ext-diff", "--binary", "--ignore-submodules=all", "HEAD"],
             env,
             self._git_timeout_s,
+            cwd=self.work,
         )
+        try:
+            return raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise WorkspaceError("the change is not valid UTF-8 and cannot be stored as a patch") from exc
 
     def _refuse_nested_git(self) -> None:
         """A `.git` anywhere inside the checkout, planted by the agent, is refused rather than made
@@ -220,6 +233,94 @@ class Workspace:
             os.close(fd)
         if found is not None:
             raise WorkspaceError(f"refusing to run git over the checkout: found {found!r} inside it")
+
+    # -- building and publishing a branch (PR gate) ---------------------------------------------
+
+    def apply_patch(self, patch: str) -> None:
+        """Apply a stored task patch onto the checkout and stage it. `git apply` refuses paths inside
+        `.git`, so a patch cannot plant hooks or config."""
+        _git(
+            [*self._base_args(), "apply", "--index", "--whitespace=nowarn", "-"],
+            _git_env(()),
+            self._git_timeout_s,
+            patch.encode(),
+            cwd=self.work,
+        )
+
+    def commit_all(self, message: str, author_name: str, author_email: str) -> str:
+        """Commit everything staged or changed and return the commit SHA."""
+        base, env = self._base_args(), _git_env(())
+        _git([*base, "add", "-A"], env, self._git_timeout_s, cwd=self.work)
+        staged = subprocess.run(  # noqa: S603  # argv list, no shell
+            ["git", *base, "diff", "--cached", "--quiet"],  # noqa: S607
+            env=env,
+            cwd=self.work,
+            capture_output=True,
+            timeout=self._git_timeout_s,
+            check=False,
+        )
+        if staged.returncode == 0:
+            raise WorkspaceError("there is nothing to commit")
+        _git(
+            [
+                *base,
+                "-c",
+                f"user.name={author_name}",
+                "-c",
+                f"user.email={author_email}",
+                "-c",
+                "commit.gpgsign=false",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "commit",
+                "-q",
+                "-m",
+                message,
+            ],
+            env,
+            self._git_timeout_s,
+            cwd=self.work,
+        )
+        return _git([*base, "rev-parse", "HEAD"], env, self._git_timeout_s).strip()
+
+    def push(self, remote_url: str, branch: str, token: str | None, limits: GitLimits) -> None:
+        """Force-push HEAD to a branch Mergit owns (`mergit/<plan>`). The token travels only in the
+        environment of this one git process, as an HTTP header: never in argv, a URL or a config file."""
+        validate_repo_url(remote_url, limits.allowed_schemes)
+        validate_ref(branch)
+        env = _git_env(limits.allowed_schemes)
+        if token:
+            basic = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+            env |= {
+                "GIT_CONFIG_COUNT": "1",
+                "GIT_CONFIG_KEY_0": "http.extraheader",
+                "GIT_CONFIG_VALUE_0": f"AUTHORIZATION: basic {basic}",
+            }
+        try:
+            _git(
+                [
+                    *self._base_args(),
+                    "-c",
+                    "core.hooksPath=/dev/null",
+                    "push",
+                    "--force",
+                    "-q",
+                    "--",
+                    remote_url,
+                    f"HEAD:refs/heads/{branch}",
+                ],
+                env,
+                limits.timeout_s,
+                cwd=self.work,
+            )
+        except WorkspaceError as exc:
+            msg = str(exc)
+            for secret in filter(None, (token, env.get("GIT_CONFIG_VALUE_0"))):
+                msg = msg.replace(secret, "***")
+            raise WorkspaceError(msg) from None
+
+    def _base_args(self) -> list[str]:
+        return ["--git-dir", str(self._gitdir), "--work-tree", str(self.work)]
 
     # -- files -------------------------------------------------------------------------------
 
@@ -383,15 +484,33 @@ def _git_env(allowed_schemes: Sequence[str]) -> dict[str, str]:
     return env
 
 
-def _git(args: list[str], env: dict[str, str], timeout_s: float) -> str:
+def _git(
+    args: list[str],
+    env: dict[str, str],
+    timeout_s: float,
+    stdin: bytes | None = None,
+    cwd: Path | None = None,
+) -> str:
+    return _git_raw(args, env, timeout_s, stdin, cwd).decode("utf-8", "replace")
+
+
+def _git_raw(
+    args: list[str],
+    env: dict[str, str],
+    timeout_s: float,
+    stdin: bytes | None = None,
+    cwd: Path | None = None,
+) -> bytes:
+    """Run git. With an explicit --git-dir and --work-tree, git treats the current directory as the root
+    of the work tree, so every command that touches the work tree must pass `cwd` = the checkout."""
     argv = ["git", *args]
     try:
         proc = subprocess.run(  # noqa: S603  # argv list, no shell; git is resolved from PATH
-            argv, env=env, capture_output=True, timeout=timeout_s, check=False
+            argv, env=env, input=stdin, cwd=cwd, capture_output=True, timeout=timeout_s, check=False
         )
     except subprocess.TimeoutExpired as exc:
         raise WorkspaceError("git timed out") from exc
     if proc.returncode != 0:
         last = proc.stderr.decode("utf-8", "replace").strip().splitlines()[-1:]
         raise WorkspaceError(f"git failed: {last[0] if last else 'no output'}")
-    return proc.stdout.decode("utf-8", "replace")
+    return proc.stdout

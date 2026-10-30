@@ -96,6 +96,16 @@ def test_changed_paths_includes_gitignored_files(sandbox: ProcessSandbox):
     assert "payments/refund.py" in sandbox.workspace.changed_paths()
 
 
+def test_diff_from_head_includes_gitignored_files(sandbox: ProcessSandbox):
+    """The same file `changed_paths` now counts as changed must not then silently drop out of the
+    stored patch (used for the PR and passed on to a dependent task's checkout)."""
+    sandbox.workspace.write_file(".gitignore", b"payments/\n")
+    sandbox.workspace.write_file("payments/refund.py", b"changed\n")
+    diff = sandbox.workspace.diff_from_head()
+    assert "payments/refund.py" in diff
+    assert "changed" in diff
+
+
 def test_planted_git_file_is_refused_not_silently_worked_around(sandbox: ProcessSandbox, tmp_path: Path):
     """The container could write a `.git` that points at a hostile git dir with a code-running config.
     Refusing the whole operation is simpler to get right than trusting that every git invocation that
@@ -215,3 +225,22 @@ def test_opening_a_fifo_does_not_hang(sandbox: ProcessSandbox):
     os.mkfifo(sandbox.workspace.work / "pipe")
     with pytest.raises(WorkspaceError, match="not a regular file"):
         sandbox.workspace.read_file("pipe", 10)
+
+
+def test_git_work_tree_commands_run_in_the_checkout_not_the_callers_directory(
+    sandbox: ProcessSandbox, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """With --git-dir and --work-tree, git takes the current directory as the work-tree root. A patch applied
+    from the wrong directory once wrote files into the caller's cwd."""
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    patch = (
+        "diff --git a/docs/notes.md b/docs/notes.md\n--- a/docs/notes.md\n+++ b/docs/notes.md\n"
+        "@@ -1 +1,2 @@\n notes\n+more\n"
+    )
+    sandbox.workspace.apply_patch(patch)
+    sha = sandbox.workspace.commit_all("m", "n", "n@example.test")
+    assert len(sha) == 40
+    assert list(elsewhere.iterdir()) == []
+    assert (sandbox.workspace.work / "docs" / "notes.md").read_text() == "notes\nmore\n"
