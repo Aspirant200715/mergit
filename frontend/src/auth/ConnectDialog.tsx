@@ -154,7 +154,7 @@ export function ConnectDialog() {
             </pre>
             {step.name === "signing" ? (
               <span className="row g8 small c2" role="status">
-                <MergitLoader size={22} label="Waiting for signature" />
+                <MergitLoader size={22} decorative />
                 Waiting for signature…
               </span>
             ) : (
