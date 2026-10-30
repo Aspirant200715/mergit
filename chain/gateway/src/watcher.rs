@@ -93,6 +93,21 @@ async fn handle(db: &mut sqlx::PgConnection, s: &AppState, log: &Log) -> anyhow:
                 .log_decode::<ReceiptRegistry::ReceiptCommitted>()?
                 .inner
                 .data;
+            // A re-read of the same logs must not list a receipt twice, and a task commits once, so the first wins.
+            sqlx::query(
+                "insert into commitments (task_id, agent_id, root, body_hash, cost_micros, block, log_index, tx)
+                 values ($1, $2, $3, $4, $5, $6, $7, $8) on conflict (task_id) do nothing",
+            )
+            .bind(e.taskId.to_string())
+            .bind(e.agentId.to_string())
+            .bind(e.root.to_string())
+            .bind(e.bodyHash.to_string())
+            .bind(i64::try_from(e.costMicros).unwrap_or(i64::MAX))
+            .bind(log.block_number.unwrap_or_default() as i64)
+            .bind(log.log_index.unwrap_or_default() as i64)
+            .bind(tx.to_string())
+            .execute(&mut *db)
+            .await?;
             enqueue_audit(&mut *db, &s.cfg, &e.taskId.to_string()).await?;
             emit("receipt.committed", json!({"task_id": e.taskId, "tx": tx}))
         }

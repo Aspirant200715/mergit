@@ -3,6 +3,7 @@
 //! events (in chain order, through an outbox), asks the validator to audit each committed receipt, and
 //! settles expired tasks.
 
+pub mod commitments;
 pub mod credits;
 pub mod events;
 pub mod ingress;
@@ -103,9 +104,10 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 }
 
 pub fn app(state: AppState) -> Router {
-    // Only the credits read is called from browsers; events come server to server, with the shared token.
+    // Only the credits and commitments reads are called from browsers; events come server to server, with the shared token.
     let browser_reads = Router::new()
         .route("/v0/credits/{address}", axum::routing::get(credits::read))
+        .route("/v0/commitments", axum::routing::get(commitments::list))
         .layer(
             tower_http::cors::CorsLayer::new()
                 .allow_origin(tower_http::cors::Any)

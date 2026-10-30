@@ -260,14 +260,30 @@ export async function mockBackend(page: Page, b: Backend = {}) {
     }
     return json(route, {});
   });
-  await page.route(`${LIVE_ENV.VITE_GATEWAY_URL}/**`, (route) =>
-    json(route, {
+  await page.route(`${LIVE_ENV.VITE_GATEWAY_URL}/**`, (route) => {
+    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: CORS(route) });
+    if (new URL(route.request().url()).pathname === "/v0/commitments") {
+      // The gateway's index of ReceiptCommitted events, newest first.
+      const rows = [...(b.commitments ?? [])]
+        .sort((x, y) => y.block - x.block)
+        .map((c, i) => ({
+          task_id: c.taskId,
+          agent_id: c.agentId.toString(),
+          root: c.root,
+          body_hash: c.bodyHash,
+          cost_micros: c.costMicros.toString(),
+          block: c.block,
+          tx: `0x${(i + 1).toString(16).padStart(64, "0")}`,
+        }));
+      return json(route, rows);
+    }
+    return json(route, {
       granted_usdc_units: b.credits?.granted ?? "5000000",
       spent_usdc_units: b.credits?.spent ?? "0",
       remaining_usdc_units: b.credits?.remaining ?? "5000000",
       plans_today: b.credits?.plans_today ?? 0,
-    }),
-  );
+    });
+  });
   await page.route(`${LIVE_ENV.VITE_STORE_URL}/**`, (route) => {
     storeCalls.push(new URL(route.request().url()).pathname);
     const parts = new URL(route.request().url()).pathname.split("/");

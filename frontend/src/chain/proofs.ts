@@ -1,48 +1,16 @@
-import type { Hash, Hex } from "viem";
+import type { Hex } from "viem";
 import { escrowAbi, receiptRegistryAbi } from "./abi";
 import { LIVE } from "../config/live";
 import { publicClient } from "./client";
-import { blockRanges } from "./ranges";
+import { fetchCommitments } from "./commitments";
 
-/** Largest block range per getLogs call; public Base RPCs refuse larger ones. */
-const PAGE = 2000n;
+export type { Commitment } from "./commitments";
 
-export type Commitment = {
-  taskId: Hex;
-  agentId: bigint;
-  root: Hex;
-  bodyHash: Hex;
-  costMicros: bigint;
-  blockNumber: bigint;
-  tx: Hash;
-};
-
-/** Every receipt committed on chain, newest first, read in pages. */
-export async function listCommitments(): Promise<Commitment[]> {
-  const latest = await publicClient.getBlockNumber();
-  const out: Commitment[] = [];
-  for (const [fromBlock, toBlock] of blockRanges(LIVE.deployBlock, latest, PAGE)) {
-    const logs = await publicClient.getContractEvents({
-      address: LIVE.contracts.registry,
-      abi: receiptRegistryAbi,
-      eventName: "ReceiptCommitted",
-      fromBlock,
-      toBlock,
-    });
-    for (const l of logs) {
-      out.push({
-        taskId: l.args.taskId as Hex,
-        agentId: l.args.agentId as bigint,
-        root: l.args.root as Hex,
-        bodyHash: l.args.bodyHash as Hex,
-        costMicros: l.args.costMicros as bigint,
-        blockNumber: l.blockNumber,
-        tx: l.transactionHash,
-      });
-    }
-  }
-  return out.reverse();
-}
+/**
+ * Every receipt committed on chain, newest first. The gateway lists them: a browser cannot scan the chain itself,
+ * because public RPCs allow only a few hundred blocks per getLogs and the chain has moved by far more since deploy.
+ */
+export const listCommitments = () => fetchCommitments();
 
 export type OnChain = {
   agentId: bigint;

@@ -641,3 +641,107 @@ async fn client_errors_are_not_retried(pool: PgPool) {
         vec!["plan.funded", "task.escrowed"]
     );
 }
+
+async fn commitments(w: &World, query: &str) -> (StatusCode, Value) {
+    let res = app(w.state.clone())
+        .oneshot(
+            Request::get(format!("/v0/commitments{query}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = res.status();
+    let bytes = axum::body::to_bytes(res.into_body(), 1 << 20)
+        .await
+        .unwrap();
+    (
+        status,
+        serde_json::from_slice(&bytes)
+            .unwrap_or_else(|_| Value::String(String::from_utf8_lossy(&bytes).into())),
+    )
+}
+
+/// A browser cannot scan the chain for receipts (public RPCs allow a few hundred blocks per getLogs), so the
+/// gateway lists the ones its watcher has seen. The page still checks each against the chain before trusting it.
+#[sqlx::test(migrations = "./migrations")]
+async fn committed_receipts_are_listed_newest_first(pool: PgPool) {
+    let w = world(pool).await;
+    let first = commitments(&w, "").await;
+    assert_eq!(first.0, StatusCode::OK, "{first:?}");
+    assert_eq!(first.1, json!([]));
+
+    fund(&w, 2_000_000).await;
+    // Two tasks of one plan, so both can be live at once.
+    let tasks = [task_id(plan_id(), 0, 1), task_id(plan_id(), 1, 1)];
+    let mut sealed = Vec::new();
+    for (index, t) in tasks.iter().enumerate() {
+        let n = 10 + index;
+        assert_eq!(
+            post(
+                &w,
+                &dispatch_index(
+                    &w,
+                    &format!("6f1c2b8e-9d4a-4e6f-8a1b-2c3d4e5f6a{n}"),
+                    index as u32,
+                    1,
+                    1_000_000
+                )
+            )
+            .await,
+            StatusCode::OK
+        );
+        let b = sealed_for(&w, *t);
+        assert_eq!(
+            post(
+                &w,
+                &sealed_event(&format!("6f1c2b8e-9d4a-4e6f-8a1b-2c3d4e5f6b{n}"), &b)
+            )
+            .await,
+            StatusCode::OK
+        );
+        sealed.push(b);
+    }
+    let head = w.state.contracts.provider.get_block_number().await.unwrap();
+    loop {
+        watcher::tick(&w.state).await.unwrap();
+        let cursor: i64 = sqlx::query_scalar("select block from watcher_cursor where id = 1")
+            .fetch_one(&w.state.db)
+            .await
+            .unwrap();
+        if cursor as u64 > head {
+            break;
+        }
+    }
+    // Reading the chain twice must not list a receipt twice.
+    watcher::tick(&w.state).await.unwrap();
+
+    let (status, list) = commitments(&w, "").await;
+    assert_eq!(status, StatusCode::OK);
+    let rows = list.as_array().expect("an array");
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0]["task_id"], json!(tasks[1]), "newest first");
+    assert_eq!(rows[1]["task_id"], json!(tasks[0]));
+    let second = &sealed[1].receipt;
+    assert_eq!(rows[0]["root"], json!(second.root));
+    assert_eq!(rows[0]["body_hash"], json!(second.body_hash));
+    assert_eq!(
+        rows[0]["agent_id"],
+        json!(second.header.agent_id.to_string())
+    );
+    assert_eq!(
+        rows[0]["cost_micros"],
+        json!(second.meter.usd_micros.to_string())
+    );
+    assert!(rows[0]["block"].as_u64().unwrap() >= rows[1]["block"].as_u64().unwrap());
+    assert!(rows[0]["tx"].as_str().unwrap().starts_with("0x"));
+
+    let (_, one) = commitments(&w, "?limit=1").await;
+    assert_eq!(one.as_array().unwrap().len(), 1);
+    assert_eq!(one[0]["task_id"], json!(tasks[1]));
+    assert_eq!(commitments(&w, "?limit=0").await.0, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        commitments(&w, "?limit=banana").await.0,
+        StatusCode::BAD_REQUEST
+    );
+}
