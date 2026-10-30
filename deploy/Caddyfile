@@ -31,11 +31,11 @@ www.mergit.site {
 }
 
 # The same frontend on live Base Sepolia data, and the orchestration API on the same origin: the browser calls
-# /v0/auth, /v0/plans and /v0/agents here, so sign-in cookies are first-party and there is no CORS. The gateway and the
+# /v0/auth, /v0/account, /v0/plans and /v0/agents here, so sign-in cookies are first-party and there is no CORS. The gateway and the
 # worker reach the API directly over the compose network, so /v0/chain-events and /v0/internal are deliberately not
 # proxied.
 app.mergit.site {
-	@api path /v0/auth/* /v0/plans /v0/plans/* /v0/agents
+	@api path /v0/auth/* /v0/account/* /v0/plans /v0/plans/* /v0/agents
 	handle @api {
 		reverse_proxy api:8000
 	}

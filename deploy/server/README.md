@@ -9,7 +9,7 @@ One server (Hetzner CPX32, Nuremberg) runs everything that used to run on a lapt
 | `gateway.mergit.site` | gateway (chain relay, credits) | Caddy, then `gateway:8082` |
 | `store.mergit.site` | evidence store (receipt bundles) | Caddy, then `store:8081` |
 | _(not public)_ | validator, Postgres | compose network only |
-| `app.mergit.site/v0/{auth,plans,agents}` | orchestration API (control plane), same origin as the app | Caddy, then `api:8000`; needs `deploy/compose.controlplane.yaml` |
+| `app.mergit.site/v0/{auth,account,plans,agents}` | orchestration API (control plane), same origin as the app | Caddy, then `api:8000`; needs `deploy/compose.controlplane.yaml` |
 | `api.mergit.site` | the same API on its own name (optional) | Caddy, then `api:8000`; needs an A record |
 
 Everything is testnet money. The Hetzner firewall (`mergit-fw`) allows only 22, 80 and 443.
@@ -109,3 +109,19 @@ leaves the running containers as they were, but a change that builds and misbeha
 - Data lives in Docker volumes (`pgdata`, `receipts`, `audits`, `caddy_data`). `docker compose down` keeps them;
   `down -v` deletes them. Hetzner backups are off, so take a snapshot from the console before the demo.
 - Cost: CPX32 is billed by the hour up to a monthly cap, so delete the server (not just stop it) when it is no longer needed.
+
+
+## Backups
+
+Users, sessions, plans and the credits ledger live in two Postgres databases on Docker volumes (`cp_pgdata` and
+`pgdata`). They survive restarts and redeploys; only `docker compose down -v` deletes them. Hetzner's automatic backups
+are off, so dump them yourself:
+
+```bash
+deploy/server/backup.sh            # writes ~/backups/mergit_cp-<time>.sql.gz and mergit-<time>.sql.gz, keeps 14 days
+```
+
+Run it nightly from cron (`crontab -e`): `15 3 * * * cd ~/mergit/mergit && deploy/server/backup.sh >> ~/backups/backup.log 2>&1`.
+Copy the directory off the server as well (`scp -r viscous@91.98.73.73:backups .`), because a dump on the same disk is
+lost with the disk. To restore into a fresh database: `gunzip -c mergit_cp-<time>.sql.gz | docker compose exec -T cp_postgres psql -U postgres mergit_cp`.
+Dumps contain email addresses and session-token hashes: keep them private.

@@ -12,7 +12,12 @@ case "$what" in all|services|web|app) ;; *) echo "usage: $0 [all|services|web|ap
 git pull --ff-only
 git -C ../mergit-contracts pull --ff-only   # deployments/base-sepolia.json lives there
 
-case "$what" in all|services) compose up -d --build ;; esac
+case "$what" in
+  all|services)
+    compose up -d --build
+    # The Caddyfile is a bind mount, so a changed one is not picked up by `up`; a reload applies it with no downtime.
+    compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile || compose restart caddy ;;
+esac
 case "$what" in all) deploy/server/build-sites.sh all ;; web|app) deploy/server/build-sites.sh "$what" ;; esac
 
 compose ps
