@@ -33,6 +33,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
+      - name: Check the deploy secrets are set
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          missing=0
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS; do
+            if [ -z "${!name}" ]; then echo "::error::Repository secret $name is not set (deploy/server/README.md, Automatic deploys)"; missing=1; fi
+          done
+          exit $missing
       - name: Install the key and the pinned host key
         env:
           KEY: ${{ secrets.DEPLOY_SSH_KEY }}
