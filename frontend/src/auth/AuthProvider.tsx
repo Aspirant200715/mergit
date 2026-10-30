@@ -4,6 +4,7 @@ import { paths } from "../app/paths";
 import { prefersReducedMotion } from "../lib/motion";
 import { AuthContext } from "./context";
 import type { Address } from "viem";
+import { onSessionEnded } from "../api/client";
 import { signOutLive, watchAccount } from "../chain/wallet";
 import { DATA_MODE } from "../config/live";
 import { checkSession } from "./liveSession";
@@ -72,6 +73,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, [session]);
+
+  // Any API call that comes back 401 means the server dropped the session since the check above: end it here too,
+  // quietly (no sign-out splash, which is for someone choosing to leave).
+  useEffect(() => {
+    if (DATA_MODE !== "live") return;
+    onSessionEnded(() => {
+      writeSession(null);
+      setSession(null);
+    });
+    return () => {
+      onSessionEnded(null);
+    };
+  }, []);
 
   // On live data, a different wallet account ends the session: the signed-in address must be the one that funds.
   useEffect(() => {

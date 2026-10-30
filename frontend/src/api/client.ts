@@ -23,6 +23,13 @@ export class ApiError extends Error {
   }
 }
 
+let sessionEnded: (() => void) | null = null;
+
+/** The app registers what to do when the API says the session is gone (a 401); pass `null` to stop listening. */
+export function onSessionEnded(handler: (() => void) | null): void {
+  sessionEnded = handler;
+}
+
 const STATUS_MESSAGE: Partial<Record<number, string>> = {
   401: "Your session has ended. Sign in again to continue.",
   403: "Only the requester who created this plan can do that.",
@@ -64,6 +71,7 @@ async function request<T>(method: "GET" | "POST" | "PATCH", path: string, body?:
   } catch {
     throw new ApiError(0, "Mergit is unreachable. Check your connection and try again.");
   }
+  if (response.status === 401) sessionEnded?.();
   if (!response.ok) throw await toError(response);
   return (await response.json()) as T;
 }
