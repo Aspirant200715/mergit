@@ -17,6 +17,15 @@ _MILLION = Decimal(1_000_000)
 class Price:
     input_per_mtok: Decimal
     output_per_mtok: Decimal
+    # Prompt-cache prices. None when the table has none: a call that reports cache tokens then fails
+    # instead of being priced as if the cache were free.
+    cache_read_per_mtok: Decimal | None = None
+    cache_write_per_mtok: Decimal | None = None
+
+
+def _optional_price(table: dict[str, object], key: str) -> Decimal | None:
+    value = table.get(key)
+    return None if value is None else Decimal(str(value))
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,7 +73,12 @@ class PriceTable:
             models = raw["models"]
             return cls(
                 {
-                    name: Price(Decimal(str(p["input_per_mtok"])), Decimal(str(p["output_per_mtok"])))
+                    name: Price(
+                        Decimal(str(p["input_per_mtok"])),
+                        Decimal(str(p["output_per_mtok"])),
+                        _optional_price(p, "cache_read_per_mtok"),
+                        _optional_price(p, "cache_write_per_mtok"),
+                    )
                     for name, p in models.items()
                 }
             )
@@ -80,13 +94,30 @@ class PriceTable:
             raise ConfigError(f"no price for model {model!r} in the price table")
         return price
 
-    def model_call_cost(self, model: str, input_tokens: int, output_tokens: int, wall_ms: int) -> Cost:
+    def model_call_cost(
+        self,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        wall_ms: int,
+        *,
+        cache_read_tokens: int = 0,
+        cache_write_tokens: int = 0,
+    ) -> Cost:
         """Cost of one model call in micro-USD, rounded half up. An unpriced model is an error:
-        a receipt must not carry a guessed cost."""
+        a receipt must not carry a guessed cost. ``input_tokens`` excludes cached tokens, which the
+        provider reports separately and prices differently."""
         price = self.price(model)
-        usd = (
-            Decimal(input_tokens) * price.input_per_mtok + Decimal(output_tokens) * price.output_per_mtok
-        ) / _MILLION
+        usd = Decimal(input_tokens) * price.input_per_mtok + Decimal(output_tokens) * price.output_per_mtok
+        for tokens, rate, name in (
+            (cache_read_tokens, price.cache_read_per_mtok, "cache_read_per_mtok"),
+            (cache_write_tokens, price.cache_write_per_mtok, "cache_write_per_mtok"),
+        ):
+            if tokens:
+                if rate is None:
+                    raise ConfigError(f"model {model!r} reported cached tokens but has no {name}")
+                usd += Decimal(tokens) * rate
+        usd /= _MILLION
         micros = int((usd * _MILLION).quantize(Decimal(1), rounding=ROUND_HALF_UP))
         return Cost(
             model=model,

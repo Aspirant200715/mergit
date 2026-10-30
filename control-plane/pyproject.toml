@@ -5,19 +5,28 @@ description = "Mergit orchestration: planner, task graph, agent workers"
 requires-python = ">=3.12"
 license = "GPL-3.0-only"
 dependencies = [
-  "anthropic>=1.0",
+  # siwe 4.4 (last release Oct 2024) defines ALPHA in its grammar; abnf 2.9 refuses that at import.
+  "abnf>=2.2,<2.9",
+  "anthropic>=2.3,<3",
   "docker>=7.1",
   "fastapi>=0.115",
   "httpx>=0.28",
   "jsonschema>=4.23",
   "mergit-receipt",
   "psycopg[binary]>=3.2",
+  "psycopg-pool>=3.3",
   "pydantic>=2.9",
   "pydantic-settings>=2.6",
+  "referencing>=0.36",
+  "siwe>=4.4,<5",
+  "uvicorn[standard]>=0.34",
 ]
 
 [dependency-groups]
 dev = [
+  "eth-account>=0.13.1",
+  # Starlette's TestClient is built on httpx2; with plain httpx it warns and pyright cannot type it.
+  "httpx2>=2.13",
   "pyright>=1.1.390",
   "pytest>=8.3",
   "respx>=0.22",
@@ -42,6 +51,11 @@ markers = [
   "postgres: needs Docker to start a Postgres container",
 ]
 addopts = "-m 'not docker and not postgres'"
+filterwarnings = [
+  # Third-party noise: siwe's grammar redefines core ABNF rules, web3 imports websockets.legacy.
+  "ignore::abnf.GrammarWarning",
+  "ignore:websockets.legacy is deprecated:DeprecationWarning",
+]
 
 [tool.ruff]
 line-length = 110
