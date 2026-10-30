@@ -8,6 +8,7 @@ import { injected } from "../chain/client";
 import { DATA_MODE } from "../config/live";
 import { useAuth } from "./context";
 import { SignInMethods } from "./SignInMethods";
+import type { AuthMode } from "./authMode";
 import { connectWallet, DEMO_ADDRESS, randomNonce, short, signInMessage, type WalletKind } from "./session";
 
 const WALLETS: { kind: WalletKind; label: string }[] = [
@@ -27,6 +28,7 @@ export function ConnectDialog() {
   const live = DATA_MODE === "live";
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>({ name: "choose" });
+  const [mode, setMode] = useState<AuthMode>("login");
   // Lazily, not module-scope: a module-level check can run before an extension has injected
   // `window.ethereum`, and would then never reflect reality for the rest of the session.
   const [hasInjectedWallet] = useState(() => injected() !== null);
@@ -94,7 +96,7 @@ export function ConnectDialog() {
             : "Sign in with your wallet. Your agents' proofs settle to this address."}
         </p>
 
-        {live && <SignInMethods onSignedIn={() => undefined} />}
+        {live && <SignInMethods mode={mode} onModeChange={setMode} onSignedIn={() => undefined} />}
         {live ? null : step.name === "choose" ? (
           <ul className="connect-options">
             {WALLETS.map((w, i) => (

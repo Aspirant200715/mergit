@@ -2,6 +2,7 @@ import { getAddress, toHex, type Address } from "viem";
 import { LIVE } from "../config/live";
 import { short, type Session } from "../auth/session";
 import { injected, switchChain, walletChainId } from "./client";
+import { NoAccountError, type Intent } from "../auth/intent";
 import { buildSignIn } from "./siwe";
 
 /** The API's address without a trailing slash. An empty one would send sign-in to the page's own origin. */
@@ -50,14 +51,18 @@ const walletSession = (address: Address): Session => ({
 });
 
 /** Signs in with the browser wallet: connect, check the chain, sign an EIP-4361 message, open a session. */
-export async function connectAndSignIn(onMessage?: (message: string) => void): Promise<Session> {
+export async function connectAndSignIn(
+  onMessage?: (message: string) => void,
+  intent: Intent = "register",
+): Promise<Session> {
   const { api, address, message, signature } = await signWithWallet(onMessage);
   const verify = await fetch(`${api}/v0/auth/verify`, {
     method: "POST",
     credentials: "include",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ message, signature }),
+    body: JSON.stringify({ message, signature, intent }),
   });
+  if (verify.status === 404) throw new NoAccountError();
   if (!verify.ok) throw new Error("Mergit did not accept the signature. Try signing in again.");
   return walletSession(address);
 }

@@ -2,6 +2,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { paths } from "../app/paths";
 import { useAuth } from "../auth/context";
 import { SignInMethods } from "../auth/SignInMethods";
+import { modeCopy, modeFromParams } from "../auth/authMode";
 import { signInErrorMessage } from "../auth/signInOptions";
 import { demoSession, type SignInMethod } from "../auth/session";
 import { DATA_MODE } from "../config/live";
@@ -25,7 +26,9 @@ export function SignIn() {
   };
   const { receipt } = signInPitch;
   const live = DATA_MODE === "live";
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
+  const mode = modeFromParams(params);
+  const copy = modeCopy(mode);
   const failure = signInErrorMessage(params.get("error"));
 
   return (
@@ -44,26 +47,47 @@ export function SignIn() {
             One sentence becomes a fix in GitHub, a ticket in Linear and a reply in the thread that asked. Every
             finished task settles on chain.
           </p>
-          <div className="card si-float">
-            <div className="row g12">
-              <AgentAvatar kind={receipt.agent} size={36} />
-              <div className="col grow">
-                <span className="strong">{receipt.title}</span>
-                <span className="mono-s c3">
-                  {receipt.tx}, block {receipt.block}
-                </span>
+          {live ? (
+            <ul className="col g12 si-points">
+              <li className="row g12">
+                <Icon name="tick" size={16} stroke={2.4} />
+                <span>Every finished task leaves a receipt committed on Base Sepolia, which anyone can check.</span>
+              </li>
+              <li className="row g12">
+                <Icon name="tick" size={16} stroke={2.4} />
+                <span>Start free: trial credits pay for your first runs, with no wallet needed.</span>
+              </li>
+              <li className="row g12">
+                <Icon name="tick" size={16} stroke={2.4} />
+                <span>Connect a wallet when you want to pay with your own test USDC.</span>
+              </li>
+            </ul>
+          ) : (
+            <div className="card si-float">
+              <div className="row g12">
+                <AgentAvatar kind={receipt.agent} size={36} />
+                <div className="col grow">
+                  <span className="strong">{receipt.title}</span>
+                  <span className="mono-s c3">
+                    {receipt.tx}, block {receipt.block}
+                  </span>
+                </div>
+                <Badge status="Verified" label="Settled" />
               </div>
-              <Badge status="Verified" label="Settled" />
             </div>
-          </div>
+          )}
         </div>
-        <ul className="row g24 small c2 si-stats">
-          {signInPitch.stats.map(([value, label]) => (
-            <li key={label}>
-              <b className="strong ink">{value}</b> {label}
-            </li>
-          ))}
-        </ul>
+        {live ? (
+          <span className="small c3">Sample numbers are not shown here: everything in the app is read live.</span>
+        ) : (
+          <ul className="row g24 small c2 si-stats">
+            {signInPitch.stats.map(([value, label]) => (
+              <li key={label}>
+                <b className="strong ink">{value}</b> {label}
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="si-form-wrap">
@@ -73,11 +97,8 @@ export function SignIn() {
         {live ? (
           <div className="col g16 si-form page-enter">
             <div className="col g6">
-              <h2 className="heading">Sign in to Mergit</h2>
-              <p className="c2">
-                Use GitHub, Google or your email to create an account, then start a free trial or connect a wallet. Or
-                sign in with a wallet directly: you sign a message, which costs nothing and sends no transaction.
-              </p>
+              <h2 className="heading">{copy.heading}</h2>
+              <p className="c2">{copy.lede}</p>
             </div>
             {failure && (
               <p className="small cr" role="alert">
@@ -85,10 +106,29 @@ export function SignIn() {
               </p>
             )}
             <SignInMethods
+              mode={mode}
+              onModeChange={(next) => {
+                setParams({ mode: next });
+              }}
               onSignedIn={() => {
                 void navigate(paths.app);
               }}
             />
+            <span className="small c3 si-signup">
+              {copy.switchPrompt}{" "}
+              <button
+                type="button"
+                className="link small"
+                onClick={() => {
+                  setParams({ mode: mode === "login" ? "register" : "login" });
+                }}
+              >
+                {copy.switchAction}
+              </button>
+            </span>
+            <p className="small c3 si-terms">
+              Mergit runs on the Base Sepolia testnet. Test funds only: nothing here is real money.
+            </p>
           </div>
         ) : (
           <form

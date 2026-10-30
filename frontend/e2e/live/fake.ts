@@ -21,6 +21,8 @@ export type Backend = {
   commitments?: Array<{ taskId: Hex; agentId: bigint; root: Hex; bodyHash: Hex; costMicros: bigint; block: number }>;
   /** Bundles the store serves, keyed by body hash (the only way the app may fetch them). */
   bundles?: Record<string, string>;
+  /** False: no account uses the wallet, so signing in (not creating an account) with it is refused. */
+  walletRegistered?: boolean;
   /** What GET /v0/auth/providers says is set up. Default: none, so only the wallet is offered. */
   providers?: { wallet: boolean; github: boolean; google: boolean; email: boolean };
   /**
@@ -230,7 +232,11 @@ export async function mockBackend(page: Page, b: Backend = {}) {
     const path = new URL(route.request().url()).pathname;
     apiCalls.push({ path, body: route.request().postDataJSON() as unknown });
     if (path === "/v0/auth/nonce") return json(route, { nonce: "a1b2c3d4e5f6a7b8" });
-    if (path === "/v0/auth/verify") return json(route, { address: ME });
+    if (path === "/v0/auth/verify") {
+      const intent = (route.request().postDataJSON() as { intent?: string } | null)?.intent;
+      if (intent === "login" && b.walletRegistered === false) return json(route, { detail: "no_account" }, 404);
+      return json(route, { address: ME });
+    }
     if (path === "/v0/auth/providers")
       return json(route, b.providers ?? { wallet: true, github: false, google: false, email: false });
     if (path === "/v0/auth/me") {

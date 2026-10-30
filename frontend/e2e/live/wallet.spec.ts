@@ -8,7 +8,7 @@ test("signs in with a wallet and shows the address", async ({ page, context }) =
   await page.goto("/app");
   const dialog = page.getByRole("dialog", { name: "Connect to Mergit" });
   await expect(dialog.getByRole("button", { name: /WalletConnect/ })).toHaveCount(0);
-  await dialog.getByRole("button", { name: "Continue with wallet" }).click();
+  await dialog.getByRole("button", { name: "Sign in with wallet" }).click();
   await expect(dialog).toBeHidden();
   const verify = calls.find((c) => c.path === "/v0/auth/verify");
   expect((verify?.body as { message: string }).message).toContain("Chain ID: 84532");
@@ -22,7 +22,7 @@ test("signs out when the wallet account changes", async ({ page, context }) => {
   await installWallet(context);
   await mockBackend(page);
   await page.goto("/app");
-  await page.getByRole("button", { name: "Continue with wallet" }).click();
+  await page.getByRole("button", { name: "Sign in with wallet" }).click();
   await expect(page.getByRole("dialog", { name: "Connect to Mergit" })).toBeHidden();
   await page.evaluate((other) => {
     (window as unknown as { __fakeWallet: { switchAccount: (a: string) => void } }).__fakeWallet.switchAccount(other);

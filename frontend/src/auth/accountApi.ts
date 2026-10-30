@@ -1,4 +1,5 @@
 import { apiBase } from "../chain/wallet";
+import { NoAccountError, type Intent } from "./intent";
 import type { Providers } from "./signInOptions";
 
 /** The sign-in methods the server has set up, or null when it cannot be asked. */
@@ -14,7 +15,8 @@ export async function fetchProviders(): Promise<Providers | null> {
 }
 
 /** Where the browser goes to sign in with GitHub or Google. A full-page navigation: the provider redirects back. */
-export const oauthStartUrl = (provider: "github" | "google") => `${apiBase()}/v0/auth/${provider}/start`;
+export const oauthStartUrl = (provider: "github" | "google", intent: Intent) =>
+  `${apiBase()}/v0/auth/${provider}/start?intent=${intent}`;
 
 const post = (path: string, body?: unknown) =>
   fetch(`${apiBase()}${path}`, {
@@ -35,10 +37,11 @@ export async function requestEmailCode(email: string): Promise<void> {
 }
 
 /** Signs in with the emailed code. The session is the cookie the server sets. */
-export async function submitEmailCode(email: string, code: string): Promise<void> {
-  const response = await post("/v0/auth/email/verify", { email, code }).catch(() => {
+export async function submitEmailCode(email: string, code: string, intent: Intent): Promise<void> {
+  const response = await post("/v0/auth/email/verify", { email, code, intent }).catch(() => {
     throw new Error("Mergit's API is unreachable. Check your connection and try again.");
   });
+  if (response.status === 404) throw new NoAccountError();
   if (response.status === 401) throw new Error("That code is wrong or has expired. Ask for a new one.");
   if (response.status === 422) throw new Error("The code is six digits.");
   if (!response.ok) throw new Error("Mergit could not check the code. Try again in a moment.");

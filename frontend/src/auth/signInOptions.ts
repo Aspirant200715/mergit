@@ -27,6 +27,7 @@ const ERRORS: Record<string, string> = {
   oauth_failed: "The provider did not complete the sign-in. Try again in a moment.",
   oauth_denied: "You cancelled the sign-in at the provider. Nothing was changed.",
   email_unverified: "That Google account has no verified email address, so Mergit cannot use it.",
+  no_account: "No Mergit account uses that sign-in yet. Create an account to get started.",
   identity_taken: "That account is already linked to another Mergit user. Sign in with it directly instead.",
 };
 

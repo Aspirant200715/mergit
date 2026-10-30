@@ -37,21 +37,54 @@ const open = async (page: Parameters<typeof mockBackend>[0], b: Backend) => {
 test("the sign in page offers the methods the server has set up, and no others", async ({ page }) => {
   await open(page, { me: null, providers: { wallet: true, github: true, google: false, email: true } });
   await page.goto("/signin");
-  await expect(page.getByRole("link", { name: "Continue with GitHub" })).toHaveAttribute(
+  await expect(page.getByRole("link", { name: "Sign in with GitHub" })).toHaveAttribute(
     "href",
-    "http://api.test/v0/auth/github/start",
+    "http://api.test/v0/auth/github/start?intent=login",
   );
-  await expect(page.getByRole("link", { name: "Continue with Google" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Continue with wallet" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Sign in with Google" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Sign in with wallet" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Email me a code" })).toBeVisible();
   await expect(page.locator("body")).not.toContainText("demo account");
+});
+
+test("Sign in and Create account are separate: the wording and what is sent to the server change", async ({ page }) => {
+  await open(page, { me: null, providers: everything });
+  await page.goto("/signin");
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+  await page.getByRole("radio", { name: "Create account" }).click();
+  await expect(page).toHaveURL(/mode=register/);
+  await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Sign up with GitHub" })).toHaveAttribute(
+    "href",
+    "http://api.test/v0/auth/github/start?intent=register",
+  );
+  await expect(page.getByRole("button", { name: "Sign up with wallet" })).toBeVisible();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+});
+
+test("signing in with a wallet nobody registered says so and moves to Create account", async ({ page }) => {
+  await open(page, { me: null, providers: everything, walletRegistered: false });
+  await page.goto("/signin");
+  await page.getByRole("button", { name: "Sign in with wallet" }).click();
+  await expect(page.getByRole("alert")).toContainText("Create an account");
+  await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
+  await page.getByRole("button", { name: "Sign up with wallet" }).click();
+  await expect(page).toHaveURL(/\/app$/);
+});
+
+test("a provider that finds no account sends the person to Create account, with the reason", async ({ page }) => {
+  await open(page, { me: null, providers: everything });
+  await page.goto("/signin?error=no_account");
+  await expect(page.getByRole("alert")).toContainText("Create an account");
+  await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
 });
 
 test("only the wallet is offered while the server has not set anything else up", async ({ page }) => {
   await open(page, { me: null });
   await page.goto("/signin");
-  await expect(page.getByRole("button", { name: "Continue with wallet" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Continue with/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Sign in with wallet" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /^Sign (in|up) with/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Email me a code" })).toHaveCount(0);
 });
 
@@ -68,9 +101,9 @@ test("signed out, the dashboard asks for a sign in with every method the server 
   await open(page, { me: null, providers: everything });
   await page.goto("/app");
   const dialog = page.getByRole("dialog", { name: "Connect to Mergit" });
-  await expect(dialog.getByRole("link", { name: "Continue with GitHub" })).toBeVisible();
-  await expect(dialog.getByRole("link", { name: "Continue with Google" })).toBeVisible();
-  await expect(dialog.getByRole("button", { name: "Continue with wallet" })).toBeVisible();
+  await expect(dialog.getByRole("link", { name: "Sign in with GitHub" })).toBeVisible();
+  await expect(dialog.getByRole("link", { name: "Sign in with Google" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Sign in with wallet" })).toBeVisible();
 });
 
 test("coming back from GitHub, the session cookie signs the browser in as that person", async ({ page }) => {
@@ -153,7 +186,7 @@ test("an emailed code signs in", async ({ page }) => {
   await page.getByRole("button", { name: "Email me a code" }).click();
   await expect(page.getByText("We sent a six-digit code to")).toContainText("ada@example.com");
   await page.getByLabel("Code").fill("123456");
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/app$/);
   expect(calls.find((c) => c.path === "/v0/auth/email/verify")?.body).toEqual({
     email: "ada@example.com",
@@ -181,7 +214,7 @@ test("a wrong emailed code shows the reason and stays on the form", async ({ pag
   await page.getByLabel("Email").fill("ada@example.com");
   await page.getByRole("button", { name: "Email me a code" }).click();
   await page.getByLabel("Code").fill("000000");
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("wrong or has expired");
   await expect(page).toHaveURL(/\/signin$/);
 });

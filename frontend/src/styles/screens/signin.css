@@ -106,3 +106,19 @@
     line-height: 40px;
   }
 }
+.si-points {
+  list-style: none;
+  max-width: 480px;
+  color: var(--ink2);
+}
+.si-points svg {
+  flex: none;
+  margin-top: 4px;
+  color: var(--mint);
+}
+.si-tabs {
+  width: 100%;
+}
+.si-terms {
+  text-align: center;
+}
