@@ -22,6 +22,7 @@ from fastapi.testclient import TestClient
 from psycopg.types.json import Jsonb
 from siwe import SiweMessage
 
+from mergit_cp import money
 from mergit_cp.config import Settings
 from mergit_cp.db import Pool, open_pool
 from tests.conftest import APP_DOMAIN
@@ -133,11 +134,19 @@ async def seed_plan(
 
 
 async def seed_chain_event(pool: Pool, event_type: str, payload: dict[str, Any]) -> None:
-    async with pool.connection() as conn:
+    """What `chain_events.receive` does for a money event: the raw log row, then its ledger row."""
+    envelope = {
+        "event_id": str(uuid.uuid4()),
+        "type": event_type,
+        "at": "2026-10-29T00:00:00.000Z",
+        "payload": payload,
+    }
+    async with pool.connection() as conn, conn.transaction():
         await conn.execute(
             "INSERT INTO chain_events_seen (event_id, type, payload) VALUES (%s, %s, %s)",
-            (str(uuid.uuid4()), event_type, Jsonb(payload)),
+            (envelope["event_id"], event_type, Jsonb(payload)),
         )
+        assert await money.record(conn, envelope)
 
 
 def test_plans_list_only_shows_own_plans(client: TestClient, settings: Settings):
@@ -345,3 +354,101 @@ def _wait_for(predicate: Any, timeout: float = 5.0) -> None:
             return
         time.sleep(0.05)
     raise AssertionError("condition was never met")
+
+
+def test_plan_detail_reads_the_ledger_not_the_raw_log(client: TestClient, settings: Settings):
+    address = sign_in(client)
+    plan_uuid, _, task_ids = run(settings.database_url, lambda pool: seed_plan(pool, requester=address))
+
+    async def raw_only(pool: Pool) -> None:
+        async with pool.connection() as conn:
+            await conn.execute(
+                "INSERT INTO chain_events_seen (event_id, type, payload) VALUES (%s, 'verdict.recorded', %s)",
+                (
+                    str(uuid.uuid4()),
+                    Jsonb({"task_id": task_ids[0], "verdict": "fail", "tx": "0x" + "9" * 64}),
+                ),
+            )
+
+    run(settings.database_url, raw_only)
+    assert client.get(f"/v0/plans/{plan_uuid}").json()["money_events"] == []
+
+    paid = {"task_id": task_ids[0], "to": address, "amount_usdc_units": "500000", "tx": "0x" + "8" * 64}
+    run(settings.database_url, lambda pool: seed_chain_event(pool, "task.released", paid))
+    (event,) = client.get(f"/v0/plans/{plan_uuid}").json()["money_events"]
+    assert event["type"] == "task.released"
+    assert event["payload"] == paid  # the gateway's own fields, rebuilt from the typed columns
+    assert (event["task_id"], event["index"], event["attempt"], event["tx"]) == (
+        task_ids[0],
+        0,
+        1,
+        paid["tx"],
+    )
+    assert isinstance(event["id"], int)
+
+
+def test_money_events_are_scoped_to_their_own_plan(client: TestClient, settings: Settings):
+    address = sign_in(client)
+    first, _, _ = run(settings.database_url, lambda pool: seed_plan(pool, requester=address))
+    second, _, second_tasks = run(settings.database_url, lambda pool: seed_plan(pool, requester=address))
+    verdict = {"task_id": second_tasks[0], "verdict": "pass", "tx": "0x" + "7" * 64}
+    run(settings.database_url, lambda pool: seed_chain_event(pool, "verdict.recorded", verdict))
+
+    assert client.get(f"/v0/plans/{first}").json()["money_events"] == []
+    assert len(client.get(f"/v0/plans/{second}").json()["money_events"]) == 1
+
+
+def test_a_ledger_row_that_commits_late_is_still_streamed_once(client: TestClient, settings: Settings):
+    """A row can carry an older timestamp and a lower id than one already sent, if its transaction began
+    first and committed second. A time cursor would drop it; tracking ids does not."""
+    address = sign_in(client)
+    plan_uuid, _, task_ids = run(settings.database_url, lambda pool: seed_plan(pool, requester=address))
+    events: list[tuple[str, dict[str, Any]]] = []
+    stop = threading.Event()
+
+    def consume() -> None:
+        with client.stream("GET", f"/v0/plans/{plan_uuid}/events") as response:
+            name = None
+            for line in response.iter_lines():
+                if stop.is_set():
+                    return
+                if line.startswith("event: "):
+                    name = line.removeprefix("event: ")
+                elif line.startswith("data: ") and name is not None:
+                    events.append((name, json.loads(line.removeprefix("data: "))))
+                    name = None
+
+    async def late_row(pool: Pool) -> None:
+        event_id = str(uuid.uuid4())
+        async with pool.connection() as conn, conn.transaction():
+            await conn.execute(
+                "INSERT INTO chain_events_seen (event_id, type, payload) VALUES (%s, 'task.returned', '{}')",
+                (event_id,),
+            )
+            await conn.execute(
+                "INSERT INTO money_events (id, event_id, kind, plan_uuid, task_id, tx, amount_usdc_units,"
+                " reason, received_at) VALUES (-7, %s, 'task.returned', %s, %s, %s, 3, 'deadline',"
+                " now() - interval '1 hour')",
+                (event_id, plan_uuid, task_ids[1], "0x" + "6" * 64),
+            )
+
+    def ledger_events() -> list[dict[str, Any]]:
+        return [d for n, d in events if n in ("money", "verdict")]
+
+    thread = threading.Thread(target=consume, daemon=True)
+    thread.start()
+    try:
+        _wait_for(lambda: any(n == "plan.state" for n, _ in events))
+        verdict = {"task_id": task_ids[0], "verdict": "pass", "tx": "0x" + "5" * 64}
+        run(settings.database_url, lambda pool: seed_chain_event(pool, "verdict.recorded", verdict))
+        _wait_for(lambda: len(ledger_events()) == 1)
+        run(settings.database_url, late_row)
+        _wait_for(lambda: len(ledger_events()) == 2)
+        time.sleep(0.5)  # several more polls: nothing may be sent twice
+    finally:
+        stop.set()
+        thread.join(timeout=5)
+
+    sent = ledger_events()
+    assert [e["id"] for e in sent][1] == -7
+    assert len({e["id"] for e in sent}) == len(sent) == 2

@@ -53,7 +53,8 @@ only a `task_id`) knows which job to queue. `dispatch_task` and `dispatch_ready`
 (`outcomes.py`) calls directly: a retry (`dispatch_task` with the next agent and `attempt + 1`) and
 newly-unblocked dependents after a pass (`dispatch_ready` again) — one rule, never two copies of it. Every
 other event type the gateway sends (`verdict.recorded`, `task.released`, `task.returned`, `challenge.*`,
-`credits.denied`) is stored and nothing acts on it: Φ is the only thing that moves the task graph.
+`credits.denied`) is recorded in the money ledger (see O6 below) and nothing acts on it: Φ is the only thing
+that moves the task graph.
 `CHAIN_EVENTS_TOKEN` is this deployment's own choice: spec/events-v0.md names a token for the other two legs
 but not this one, so this is worth confirming with the gateway side before go-live rather than leaving the
 endpoint open.
@@ -86,12 +87,32 @@ An index that fails its last allowed attempt is `needs_requester` — not a stor
 requester's way out of a stuck plan: moves it to `closed` and sends `plan.closed`, idempotently and without
 requiring every index to actually be stuck first — a requester may have other reasons.
 
-`verdict.recorded`, `task.released`, `task.returned` and the rest are not acted on here either; they are
-simply the rows `chain_events.py` already stores for every event type with no handler. Turning them into a
-real per-plan ledger — who was paid, how much, why — is **not** part of this pass: `runs.py`'s `money_events`
-keeps reading the raw `chain_events_seen` log directly, as documented below. That's a deliberate scope cut,
-not an oversight: it is a second, separable piece of work, and nothing downstream needs to change when it
-lands, by design (see the O7 section below).
+### The money ledger (plan task O6, money half)
+
+`verdict.recorded`, `task.released`, `task.returned` (and `receipt.committed`, `challenge.*`,
+`credits.denied`) move money and reputation, **never the graph**. `mergit_cp/money.py` turns each into one row of
+the append-only `money_events` table (`migrations/0006_money_events.sql`), in the same transaction that stores
+the event in `chain_events_seen`, so the raw log and the ledger commit together or not at all.
+
+- **Structured:** typed columns, not JSON: `kind`, `plan_uuid`, `task_id`, `tx` (the transaction hash), and per
+  kind `verdict`, `payee` + `amount_usdc_units`, `amount_usdc_units` + `reason`, the challenge fields, or the
+  `credits.denied` reason. A `CHECK` makes each kind carry exactly its own fields. Amounts are `numeric(78,0)`
+  (a uint256 fits) and are returned as decimal strings; addresses are stored lowercase.
+- **Idempotent twice over:** `event_id` is unique (a retried delivery), and so is `(kind, task_id, tx,
+  challenge_id)` (the gateway re-reading a log after losing its cursor builds a new envelope for the same
+  on-chain event). Either way: one row.
+- **Append-only:** a trigger refuses `UPDATE` and `DELETE`. A ledger row is never edited.
+- **Honest about what it cannot place:** an event naming a task or plan this service never dispatched has no
+  plan to belong to. It is logged and stays only in the raw log; it is not a `500` that the gateway retries for
+  ten minutes. A number that does not fit a uint256 is rejected as a malformed event (`400`), not stored.
+  `error` events name no plan or task and stay in the raw log.
+- **Late events are fine:** a verdict, release or return after the plan is `done` or `closed` is recorded like any
+  other. The migration also backfills rows from the existing raw log, so upgrading keeps a plan's history.
+- **Never the graph, checked three ways** (`tests/test_money_graph.py`): delivering every money event in every
+  job state changes no plan, task, job, dispatch or outbox row; a failed job is retried identically with and
+  without money events present (including `task.returned` with reason `fail`); and the ledger module imports
+  nothing from `dispatch`, `outcomes`, `graph` or `plans` and writes none of their tables, while none of those
+  read the ledger.
 
 ## Run API and live stream (plan task O7)
 
@@ -100,28 +121,23 @@ things on top of the plan and its tasks:
 
 - **`attempts`**: one row per `jobs` entry (task_id, index, attempt, agent_id, status, `phi_holds`,
   `receipt_root`, `finished_at`). Already a real, structured table from O4/O5, so this is a plain read.
-- **`money_events`**: every gateway event naming this plan's `plan_id` directly (`credits.denied`) or one of
-  its tasks' `task_id` through `task_dispatches` (`receipt.committed`, `verdict.recorded`, `task.released`,
-  `task.returned`, `challenge.*`), exactly as `POST /v0/chain-events` received it.
+- **`money_events`**: this plan's rows of the money ledger above, oldest first. Each keeps the `{type, at,
+  payload}` shape (the payload is the gateway's own fields, rebuilt from the typed columns) and adds `id`,
+  `task_id`, `index`, `attempt` and `tx`. Scoped by `plan_uuid`, so one plan never sees another's events.
 
 **`credits.denied` (issue #23) needs no handler, only this read.** It only ever arrives before
 `plan.funded` (the gateway tries credits first and sends `plan.funded` only once money actually landed), so
 the plan is already sitting exactly where a denied requester needs it: `approved`, not yet funded, free to
 fund from a wallet (independent of this service entirely) or close (`POST /v0/plans/{plan_uuid}/abandon`,
-plan task O6). The only real gap was the reason going nowhere, and `money_events`/the SSE `money` event
-already carry it; see `test_credits_denied_carries_its_reason_in_plan_detail` and
+plan task O6). The only real gap was the reason going nowhere, and the ledger and the SSE `money` event
+now carry it; see `test_credits_denied_carries_its_reason_in_plan_detail` and
 `test_credits_denied_streams_as_a_money_event`.
 
-**`money_events` is a stand-in for a real ledger, not that ledger.** O6 (above) now exists, but only its
-task-graph half: outcomes, retries and escalation. Turning the gateway's money and verdict events into
-structured, queryable records (who was paid, how much, why) is a separate piece of that plan task, not done
-in this pass; until it is, `money_events` reads the raw log those events already land in
-(`chain_events_seen`) and returns it close to verbatim. `runs.py`'s docstring says the same thing: once that
-lands, only the queries in that one file should need to change, not the routes or the SSE handler.
+**Plan detail and the stream read the ledger, not `chain_events_seen`.** `runs.py` no longer queries the raw log.
 
 **`GET /v0/plans/{plan_uuid}/events`** (SSE) sends a full snapshot of plan and task state on connect, then:
 
-- `plan.state`, `task.state` and the money/verdict events are re-read from the database at most every
+- `plan.state`, `task.state` and the ledger rows (`verdict` for a verdict, `money` for the rest) are re-read from the database at most every
   `SSE_POLL_S` (1s) and sent only when something changed since the last poll;
 - `step.recorded` is relayed the moment the worker posts it to `POST /v0/internal/progress`
   (`{task_id, seq, type, cost}`, found to a plan through `task_dispatches` → `jobs`), with no polling delay.
@@ -316,8 +332,7 @@ uv run pytest -m "docker or postgres"          # real sandbox and real Postgres 
 
 ## Not done here
 
-Tracked by other plan tasks and issue #12 bullets: O6's money/verdict ledger (the task-graph half — retry,
-escalate, done — is in this pass; the ledger half is #24/#30, not yet merged), egress allowlist, receipt body
-encryption (K4), data availability checks, additional agents, evals, failure injection, and hosting (O10, in
-progress). gVisor is wired through
+Tracked by other plan tasks and issue #12 bullets: egress allowlist, receipt body encryption (K4), data
+availability checks, additional agents, evals, failure injection, and hosting (O10, in progress). gVisor is
+wired through
 `SANDBOX_RUNTIME` but has not been exercised in CI.
