@@ -1,14 +1,28 @@
-"""Model gateway: one small interface the planner and the agents call, with an Anthropic adapter.
+"""Model gateway: one small interface the planner and the agents call, with an Anthropic adapter and a Groq
+one.
 
-Nothing outside this module imports a provider SDK, so adding a provider is one more class here.
-Credentials come from the provider SDK's own environment lookup and never pass through a prompt.
+Nothing outside this module imports a provider SDK, so adding a provider is one more class here. The provider
+is
+chosen once at start-up by `build_llm` (mergit_worker/providers.py): Anthropic when its key is set, Groq when
+only
+Groq's is. Credentials come from the environment and never pass through a prompt.
 """
 
+import asyncio
+import inspect
+import logging
+import os
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol, cast
 
+import httpx
 from anthropic import APIError, AsyncAnthropic, omit
 from anthropic.types import Message, MessageParam, ToolParam
+
+from mergit_worker.llm import GROQ_BASE_URL, retry_wait
+from mergit_worker.openai_chat import BadReply, parse_reply, to_openai_messages, to_openai_tools
+from mergit_worker.providers import llm_provider
 
 
 @dataclass(frozen=True)
@@ -109,3 +123,117 @@ class AnthropicLLM:
                 else omit
             ),
         )
+
+
+log = logging.getLogger(__name__)
+_RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+_ATTEMPTS = 3
+
+
+class GroqLLM:
+    """Groq's OpenAI-compatible chat API, the fallback when there is no Anthropic key (same translation as the
+    worker's
+    `GroqLLM`, in `mergit_worker/openai_chat.py`). A structured answer is requested as best-effort JSON-schema
+    output
+    (`strict: false`, which every Groq model supports) because the planner validates every answer itself in
+    `check_tasks`, exactly as it does for Anthropic."""
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        *,
+        client: httpx.AsyncClient | None = None,
+        timeout_s: float = 120.0,
+        base_url: str = GROQ_BASE_URL,
+        sleep: Callable[[float], Any] = asyncio.sleep,
+        max_tokens: int = 16000,
+    ) -> None:
+        key = api_key or os.environ.get("GROQ_API_KEY")
+        if not key:
+            raise LLMUnavailable("GROQ_API_KEY is not set")
+        self._headers = {"Authorization": f"Bearer {key}"}
+        self._url = f"{base_url.rstrip('/')}/chat/completions"
+        self._http = client or httpx.AsyncClient(timeout=timeout_s)
+        self._sleep = sleep
+        self._max_tokens = max_tokens
+
+    async def _wait(self, seconds: float) -> None:
+        pending = self._sleep(seconds)
+        if inspect.isawaitable(pending):
+            await pending
+
+    async def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
+        for attempt in range(1, _ATTEMPTS + 1):
+            try:
+                response = await self._http.post(self._url, json=payload, headers=self._headers)
+            except httpx.TransportError as exc:
+                if attempt == _ATTEMPTS:
+                    raise LLMUnavailable(f"{type(exc).__name__}") from exc
+                await self._wait(float(attempt))
+                continue
+            if response.status_code == 200:
+                try:
+                    return cast("dict[str, Any]", response.json())
+                except ValueError as exc:
+                    raise LLMUnavailable("the answer is not JSON") from exc
+            if response.status_code not in _RETRY_STATUSES or attempt == _ATTEMPTS:
+                raise LLMUnavailable(f"HTTP {response.status_code}: {response.text[:200]}")
+            await self._wait(retry_wait(response, attempt))
+        raise AssertionError("unreachable")  # pragma: no cover
+
+    async def complete(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+        model: str,
+        *,
+        system: str | None = None,
+        output_schema: dict[str, Any] | None = None,
+    ) -> LLMResult:
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": to_openai_messages(messages, system),
+            "max_completion_tokens": self._max_tokens,
+        }
+        if tools:
+            payload["tools"] = to_openai_tools(tools)
+            payload["tool_choice"] = "auto"
+        if output_schema is not None:
+            payload["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"name": "answer", "strict": False, "schema": output_schema},
+            }
+        try:
+            reply = parse_reply(await self._post(payload))
+        except BadReply as exc:
+            raise LLMUnavailable(str(exc)) from exc
+        result = LLMResult(
+            text=reply.text,
+            tool_calls=[{"id": i, "name": n, "input": a} for i, n, a in reply.calls],
+            # Groq's prompt_tokens includes the cached part, which is priced separately at its own rate.
+            input_tokens=reply.prompt_tokens - reply.cached_tokens,
+            output_tokens=reply.completion_tokens,
+            cache_read_tokens=reply.cached_tokens,
+            cache_write_tokens=0,
+            model=reply.model or model,
+        )
+        if reply.stop_reason in _UNUSABLE:
+            raise LLMError(str(reply.stop_reason), result)
+        return result
+
+
+def build_llm(environ: Mapping[str, str] | None = None) -> LLM:
+    """The planner's model client: Anthropic when its key is set, Groq when only Groq's is.
+
+    With no key at all the API still starts, as it always has, so wallet sign-in, credits and the agent list
+    work; a planning request then fails with 502. (The worker, which can do nothing without a model, refuses
+    to start.)"""
+    env = os.environ if environ is None else environ
+    provider = llm_provider(env)
+    if provider == "groq" and env.get("GROQ_API_KEY"):
+        return GroqLLM(env["GROQ_API_KEY"])
+    if not env.get("ANTHROPIC_API_KEY"):
+        log.warning(
+            "no model key set (ANTHROPIC_API_KEY or GROQ_API_KEY): planning requests will fail until one is"
+        )
+    return AnthropicLLM()

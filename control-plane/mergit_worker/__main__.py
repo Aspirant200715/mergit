@@ -15,11 +15,12 @@ from .config import ConfigError, WorkerConfig, load_config
 from .github import GitHubConfig, GitHubPrOpener
 from .harness import HarnessConfig
 from .jobs import PgJobStore
-from .llm import AnthropicLLM
+from .llm import build_llm
 from .meter import PriceTable
 from .models import Job
 from .pr_worker import PrHandler
 from .progress import HttpProgressReporter, NullProgressReporter, ProgressReporter
+from .providers import llm_provider
 from .publish import ReceiptPublisher
 from .sandbox import Sandbox, SandboxConfig, reap_stale
 from .tools import ToolLimits
@@ -96,7 +97,7 @@ def build_worker(cfg: WorkerConfig, worker_id: str) -> Built:
     pr = build_pr_handler(cfg, worker_id)
     deps = WorkerDeps(
         store=store,
-        llm=AnthropicLLM(timeout_s=cfg.http_timeout_s * 20),
+        llm=build_llm(cfg.http_timeout_s * 20),
         prices=prices,
         publisher=ReceiptPublisher(
             store_url=cfg.store_url,
@@ -140,6 +141,7 @@ def main() -> int:
         return 2
 
     worker_id = cfg.worker_id or socket.gethostname()
+    log.info("model provider: %s", llm_provider())
     built = build_worker(cfg, worker_id)
     log.info("failed %d jobs this worker left running before a restart", built.jobs.fail_own_running())
     log.info(

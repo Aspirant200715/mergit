@@ -7,6 +7,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from mergit_worker.providers import effective_model
+
 _ADDRESS = r"^0x[0-9a-fA-F]{40}$"
 
 
@@ -69,7 +71,7 @@ def load_agents(path: str, config_path: str = "agents.toml") -> list[Agent]:
                 name=chain_agent.name,
                 operator=chain_agent.operator.lower(),
                 runtime_key=chain_agent.runtime_key.lower(),
-                model=config.model,
+                model=effective_model(config.model),
                 system_prompt=config.system_prompt,
             )
         )

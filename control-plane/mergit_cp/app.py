@@ -16,7 +16,7 @@ from .agents import load_agents
 from .config import Settings
 from .db import migrate, open_pool
 from .events import EventDeliverer
-from .llm import LLM, AnthropicLLM
+from .llm import LLM, build_llm
 from .outcomes import OutcomeProcessor
 from .planner import PgCostSink
 from .stream import PlanBroadcaster
@@ -43,7 +43,7 @@ def create_app(
         async with pool.connection() as conn:
             await migrate(conn)
         app.state.pool = pool
-        app.state.llm = llm or AnthropicLLM()
+        app.state.llm = llm or build_llm()
         app.state.costs = PgCostSink(pool, prices)
         app.state.broadcaster = PlanBroadcaster()
 

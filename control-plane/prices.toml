@@ -36,3 +36,21 @@ input_per_mtok = 1.00
 output_per_mtok = 5.00
 cache_read_per_mtok = 0.10
 cache_write_per_mtok = 1.25
+
+# Groq, the fallback provider when there is no Anthropic key (mergit_worker/providers.py). Checked against
+# https://console.groq.com/docs/models (list prices) and https://console.groq.com/docs/prompt-caching (cached input is
+# "50% less" than normal input, and caching has no extra fee, so cache_write equals input) on 2026-10-30.
+# The llama models Groq lists as "contact sales" have no public price and are deliberately absent: the meter refuses an
+# unpriced model rather than guess.
+
+[models."openai/gpt-oss-120b"]
+input_per_mtok = 0.15
+output_per_mtok = 0.60
+cache_read_per_mtok = 0.075
+cache_write_per_mtok = 0.15
+
+[models."openai/gpt-oss-20b"]
+input_per_mtok = 0.075
+output_per_mtok = 0.30
+cache_read_per_mtok = 0.0375
+cache_write_per_mtok = 0.075
