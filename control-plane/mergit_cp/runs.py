@@ -42,12 +42,12 @@ class Attempt:
     finished_at: datetime | None
 
 
-async def list_for_requester(conn: AsyncConnection[TupleRow], requester: str) -> list[PlanSummary]:
+async def list_for_requester(conn: AsyncConnection[TupleRow], requesters: list[str]) -> list[PlanSummary]:
     cur = conn.cursor(row_factory=dict_row)
     await cur.execute(
         "SELECT plan_uuid, plan_id, state, goal, category, budget_usdc_units, created_at"
-        " FROM plans WHERE requester = %s ORDER BY created_at DESC",
-        (requester,),
+        " FROM plans WHERE requester = ANY(%s) ORDER BY created_at DESC",
+        (requesters,),
     )
     return [
         PlanSummary(

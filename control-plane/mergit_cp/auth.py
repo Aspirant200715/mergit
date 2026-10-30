@@ -1,27 +1,29 @@
-"""Sign-In with Ethereum (EIP-4361) and server-side sessions.
+"""Sign-In with Ethereum (EIP-4361), server-side sessions, and what a session knows about its user.
 
-The wallet that signs in is the wallet that approves and funds a plan, so every plan route depends on
-``current_address``. Nonces are single use and short lived; sessions live in Postgres so logout revokes
-them everywhere, not just in the browser that logged out.
+A session belongs to a user and acts as one requester address: the wallet that signed in, the wallet the
+user connected later, or, for a user with no wallet, their trial address. Plans belong to an address, and a
+user owns every address they hold, so a plan drafted before a wallet was connected stays theirs. Nonces are
+single use and short lived; sessions live in Postgres so logout revokes them everywhere, not just in the
+browser that logged out.
 """
 
-import hashlib
-import hmac
-import secrets
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Any
+from uuid import UUID
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from pydantic import BaseModel
 from siwe import SiweMessage, VerificationError, generate_nonce  # pyright: ignore[reportMissingTypeStubs]
 
+from . import accounts
+from .accounts import COOKIE, token_hash
 from .config import Settings
 from .db import Pool
 from .deps import get_pool, get_settings
 
-COOKIE = "mergit_session"
-
 router = APIRouter(prefix="/v0/auth", tags=["auth"])
+account_router = APIRouter(prefix="/v0/account", tags=["account"])
 
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 PoolDep = Annotated[Pool, Depends(get_pool)]
@@ -33,9 +35,7 @@ class VerifyBody(BaseModel):
 
 
 def _token_hash(settings: Settings, token: str) -> bytes:
-    return hmac.new(
-        settings.session_secret.get_secret_value().encode(), token.encode(), hashlib.sha256
-    ).digest()
+    return token_hash(settings, token)
 
 
 def _unauthorized(reason: str) -> HTTPException:
@@ -51,10 +51,7 @@ async def nonce(settings: SettingsDep, pool: PoolDep) -> dict[str, str]:
     return {"nonce": value}
 
 
-@router.post("/verify")
-async def verify(
-    body: VerifyBody, response: Response, settings: SettingsDep, pool: PoolDep
-) -> dict[str, str]:
+def _checked_message(body: VerifyBody, settings: Settings) -> SiweMessage:
     try:
         message = SiweMessage.from_message(body.message)
     except ValueError as exc:
@@ -67,61 +64,153 @@ async def verify(
         message.verify(body.signature, domain=settings.app_domain)
     except VerificationError as exc:
         raise _unauthorized(type(exc).__name__) from exc
+    return message
 
-    address = message.address.lower()
-    token = secrets.token_urlsafe(32)
-    expires = datetime.now(UTC) + timedelta(seconds=settings.session_ttl_s)
-    async with pool.connection() as conn, conn.transaction():
-        # Consuming the nonce is the last check and is atomic, so two requests racing on one nonce cannot
-        # both get a session.
-        cur = await conn.execute(
-            "UPDATE auth_nonces SET used_at = now()"
-            " WHERE nonce = %s AND used_at IS NULL AND expires_at > now() RETURNING nonce",
-            (message.nonce,),
-        )
-        if await cur.fetchone() is None:
-            raise _unauthorized("nonce unknown, used or expired")
-        await conn.execute(
-            "INSERT INTO sessions (token_hash, address, expires_at) VALUES (%s, %s, %s)",
-            (_token_hash(settings, token), address, expires),
-        )
 
-    response.set_cookie(
-        COOKIE,
-        token,
-        max_age=settings.session_ttl_s,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        path="/",
+async def _consume_nonce(conn: Any, nonce: str) -> None:
+    # Consuming the nonce is the last check and is atomic, so two requests racing on one nonce cannot
+    # both get a session.
+    cur = await conn.execute(
+        "UPDATE auth_nonces SET used_at = now()"
+        " WHERE nonce = %s AND used_at IS NULL AND expires_at > now() RETURNING nonce",
+        (nonce,),
     )
+    if await cur.fetchone() is None:
+        raise _unauthorized("nonce unknown, used or expired")
+
+
+@router.post("/verify")
+async def verify(
+    body: VerifyBody, response: Response, settings: SettingsDep, pool: PoolDep
+) -> dict[str, str]:
+    message = _checked_message(body, settings)
+    address = message.address.lower()
+    async with pool.connection() as conn, conn.transaction():
+        await _consume_nonce(conn, message.nonce)
+        user_id = await accounts.user_for_wallet(conn, address)
+        token = await accounts.create_session(conn, settings, user_id, address)
+    accounts.set_session_cookie(response, settings, token)
     return {"address": address}
 
 
-async def current_address(
-    settings: SettingsDep, pool: PoolDep, mergit_session: Annotated[str | None, Cookie()] = None
-) -> str:
-    """The signed-in wallet address, lowercase. 401 when there is no live session."""
-    if not mergit_session:
-        raise _unauthorized("not signed in")
+@dataclass(frozen=True, slots=True)
+class Principal:
+    """Who is calling: the address they act as, their user (None only for a session from before accounts
+    existed), and every address whose plans are theirs."""
+
+    address: str
+    user_id: UUID | None
+    owned: list[str]
+
+    def owns(self, requester: str) -> bool:
+        return requester in self.owned
+
+
+async def _lookup(settings: Settings, pool: Pool, token: str | None) -> Principal | None:
+    if not token:
+        return None
     async with pool.connection() as conn:
         cur = await conn.execute(
-            "SELECT address FROM sessions"
+            "SELECT address, user_id FROM sessions"
             " WHERE token_hash = %s AND revoked_at IS NULL AND expires_at > now()",
-            (_token_hash(settings, mergit_session),),
+            (_token_hash(settings, token),),
         )
         row = await cur.fetchone()
-    if row is None:
+        if row is None:
+            return None
+        address, user_id = str(row[0]), row[1]
+        return Principal(address, user_id, await accounts.owned_addresses(conn, user_id, address))
+
+
+async def current_principal(
+    settings: SettingsDep, pool: PoolDep, mergit_session: Annotated[str | None, Cookie()] = None
+) -> Principal:
+    """The signed-in caller. 401 when there is no live session."""
+    if not mergit_session:
+        raise _unauthorized("not signed in")
+    principal = await _lookup(settings, pool, mergit_session)
+    if principal is None:
         raise _unauthorized("session expired or revoked")
-    return str(row[0])
+    return principal
+
+
+async def optional_principal(
+    settings: SettingsDep, pool: PoolDep, mergit_session: Annotated[str | None, Cookie()] = None
+) -> Principal | None:
+    """The signed-in caller, or None. Used where signing in again means linking to who is already in."""
+    return await _lookup(settings, pool, mergit_session)
+
+
+PrincipalDep = Annotated[Principal, Depends(current_principal)]
+MaybePrincipalDep = Annotated[Principal | None, Depends(optional_principal)]
+
+
+async def current_address(principal: PrincipalDep) -> str:
+    """The address the caller acts as, lowercase. 401 when there is no live session."""
+    return principal.address
 
 
 AddressDep = Annotated[str, Depends(current_address)]
 
 
+def _member(principal: Principal) -> UUID:
+    if principal.user_id is None:
+        raise _unauthorized("sign in again")  # a session from before accounts existed
+    return principal.user_id
+
+
 @router.get("/me")
-async def me(address: AddressDep) -> dict[str, str]:
+async def me(principal: PrincipalDep, pool: PoolDep) -> dict[str, Any]:
+    if principal.user_id is None:
+        return {"address": principal.address, "user_id": None, "identities": [], "wallets": [], "trial": None}
+    async with pool.connection() as conn:
+        profile = await accounts.load_profile(conn, principal.user_id)
+    return {
+        "address": principal.address,
+        "user_id": str(profile.user_id),
+        "name": profile.name,
+        "email": profile.email,
+        "avatar_url": profile.avatar_url,
+        "identities": [{"provider": p, "label": label} for p, label in profile.identities],
+        "wallets": profile.wallets,
+        "trial_address": accounts.trial_address(profile.user_id),
+        "trial": ({"started_at": profile.trial_started_at.isoformat()} if profile.trial_started_at else None),
+    }
+
+
+@router.post("/wallet/link")
+async def link_wallet(
+    body: VerifyBody,
+    principal: PrincipalDep,
+    settings: SettingsDep,
+    pool: PoolDep,
+    mergit_session: Annotated[str | None, Cookie()] = None,
+) -> dict[str, str]:
+    """The signed-in user proves they hold a wallet; from then on the session acts as that wallet."""
+    user_id = _member(principal)
+    message = _checked_message(body, settings)
+    address = message.address.lower()
+    assert mergit_session
+    async with pool.connection() as conn, conn.transaction():
+        await _consume_nonce(conn, message.nonce)
+        try:
+            await accounts.link_wallet(conn, user_id, address)
+        except accounts.WalletTaken as taken:
+            raise HTTPException(status_code=409, detail="that wallet belongs to another account") from taken
+        await conn.execute(
+            "UPDATE sessions SET address = %s WHERE token_hash = %s",
+            (address, _token_hash(settings, mergit_session)),
+        )
     return {"address": address}
+
+
+@account_router.post("/trial")
+async def start_trial(principal: PrincipalDep, pool: PoolDep) -> dict[str, str]:
+    """Chooses the free trial: plans funded from the treasury's free credits, with no wallet."""
+    user_id = _member(principal)
+    async with pool.connection() as conn:
+        started = await accounts.start_trial(conn, user_id)
+    return {"started_at": started.isoformat()}
 
 
 @router.post("/logout", status_code=204)

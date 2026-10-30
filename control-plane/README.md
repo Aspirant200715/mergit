@@ -65,6 +65,31 @@ its dependency's change in its own checkout. That gap sits between O4, O5 and O9
 PR #15 has since fixed its side by having the worker apply a dependency's stored patch before a dependent
 task runs (once these branches merge, this note can go).
 
+## Accounts and sign-in methods
+
+A user signs in with **GitHub**, **Google**, an **emailed six-digit code** or a **wallet** (SIWE). The first three
+create an account; a wallet is optional and is connected afterwards (`POST /v0/auth/wallet/link`). Accounts are never
+merged by email: a second method is attached only by the signed-in user asking for it, and an identity that already
+belongs to someone else is refused.
+
+| Method | Settings (`deploy/secrets/api.env`) | Callback to register |
+|---|---|---|
+| GitHub | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | `https://<APP_DOMAIN>/v0/auth/github/callback` |
+| Google | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | `https://<APP_DOMAIN>/v0/auth/google/callback` |
+| Email code | `SMTP_HOST`, `SMTP_FROM`, optional `SMTP_PORT` (587 STARTTLS, 465 TLS), `SMTP_USER`, `SMTP_PASSWORD` | none |
+
+A method is offered only when its settings are complete (`GET /v0/auth/providers` says which), and a blank value
+means "not set up". OAuth uses the authorization-code flow with PKCE; the `state` is single use and is also bound to
+the browser by an HttpOnly cookie. A code lives ten minutes, allows five wrong guesses, works once, is stored only as
+an HMAC, and at most five are sent to one address per hour.
+
+**The free trial.** A user with no wallet acts, on chain, as `trial_address(user_id)`: a hash nobody holds a key for.
+Their plans can only be funded from the gateway's free credits (the API refuses `funding: "wallet"`), the gateway's
+per-address grant and daily limit become per user, and Escrow refunds Onboarding plans to the treasury, not to that
+address. Free-credit work is audited on every task and earns no transferable reputation. Limits: nothing stops one
+person making many GitHub or Google accounts to collect more credits; the per-plan cap and the daily limit bound
+the cost, and a real fix needs a decision on identity proofing that has not been made. There is no paid tier yet.
+
 ## Outcomes, retries and escalation (plan task O6)
 
 The worker never calls back into this service with a job's result; it writes it straight to the job's own

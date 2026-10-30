@@ -15,9 +15,9 @@ import mergit_receipt
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-from . import outcomes, plans
+from . import accounts, outcomes, plans
 from .agents import Agent
-from .auth import AddressDep, PoolDep, SettingsDep
+from .auth import PoolDep, Principal, PrincipalDep, SettingsDep
 from .events import enqueue
 from .llm import LLM, LLMUnavailable
 from .planner import CostSink, PlanningFailed, TaskDraft, check_tasks, plan_goal
@@ -91,11 +91,11 @@ def get_agents(request: Request) -> list[Agent]:
     return request.app.state.agents
 
 
-async def _owned_draft(conn: Any, plan_uuid: UUID, address: str) -> plans.StoredPlan:
+async def _owned_draft(conn: Any, plan_uuid: UUID, principal: Principal) -> plans.StoredPlan:
     plan = await plans.load(conn, plan_uuid, for_update=True)
     if plan is None:
         raise HTTPException(status_code=404, detail="no such plan")
-    if plan.requester != address:
+    if not principal.owns(plan.requester):
         raise HTTPException(status_code=403, detail="only the requester may change this plan")
     if plan.state != "draft":
         raise HTTPException(status_code=409, detail=f"the plan is {plan.state}; only a draft can change")
@@ -105,7 +105,7 @@ async def _owned_draft(conn: Any, plan_uuid: UUID, address: str) -> plans.Stored
 @router.post("", status_code=201)
 async def create_plan(
     body: CreatePlan,
-    address: AddressDep,
+    principal: PrincipalDep,
     settings: SettingsDep,
     pool: PoolDep,
     llm: Annotated[LLM, Depends(get_llm)],
@@ -121,7 +121,15 @@ async def create_plan(
     if problems:
         raise _problems(422, problems)
 
+    address = principal.address
     async with pool.connection() as conn, conn.transaction():
+        if principal.user_id is not None and address == accounts.trial_address(principal.user_id):
+            profile = await accounts.load_profile(conn, principal.user_id)
+            if profile.trial_started_at is None:
+                raise HTTPException(
+                    status_code=403,
+                    detail="start the free trial, or connect a wallet, before drafting a plan",
+                )
         # One lock per requester, so two concurrent requests cannot both pass the limit.
         await conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (address,))
         if await plans.count_recent_attempts(conn, address) >= settings.plans_per_hour:
@@ -166,14 +174,14 @@ async def create_plan(
 
 @router.patch("/{plan_uuid}")
 async def edit_plan(
-    plan_uuid: UUID, body: EditPlan, address: AddressDep, settings: SettingsDep, pool: PoolDep
+    plan_uuid: UUID, body: EditPlan, principal: PrincipalDep, settings: SettingsDep, pool: PoolDep
 ) -> dict[str, Any]:
     tasks = [
         TaskDraft(i, t.title.strip(), t.instructions.strip(), t.phi, int(t.budget_usdc_units), t.depends_on)
         for i, t in enumerate(body.tasks)
     ]
     async with pool.connection() as conn, conn.transaction():
-        plan = await _owned_draft(conn, plan_uuid, address)
+        plan = await _owned_draft(conn, plan_uuid, principal)
         problems = check_tasks(tasks, plan.budget_usdc_units, settings.planner_max_tasks)
         if problems:
             raise _problems(422, problems)
@@ -187,14 +195,14 @@ async def edit_plan(
 async def approve_plan(
     plan_uuid: UUID,
     body: ApprovePlan,
-    address: AddressDep,
+    principal: PrincipalDep,
     settings: SettingsDep,
     pool: PoolDep,
     agents: Annotated[list[Agent], Depends(get_agents)],
 ) -> dict[str, str]:
     known = {a.agent_id for a in agents}
     async with pool.connection() as conn, conn.transaction():
-        plan = await _owned_draft(conn, plan_uuid, address)
+        plan = await _owned_draft(conn, plan_uuid, principal)
         drafts = [t.draft for t in plan.tasks]
 
         problems = check_tasks(drafts, plan.budget_usdc_units, settings.planner_max_tasks)
@@ -207,6 +215,12 @@ async def approve_plan(
             if len(set(picked)) != len(picked):
                 problems.append(f"task {index}: an agent is listed twice")
             problems.extend(f"task {index}: unknown agent {a!r}" for a in picked if a not in known)
+        if (
+            principal.user_id is not None
+            and plan.requester == accounts.trial_address(principal.user_id)
+            and body.funding != "credits"
+        ):
+            problems.append("a plan drafted on the free trial can only be funded from credits")
         if problems:
             raise _problems(422, problems)
 
@@ -237,7 +251,7 @@ async def approve_plan(
 
 @router.post("/{plan_uuid}/abandon")
 async def abandon_plan(
-    plan_uuid: UUID, address: AddressDep, settings: SettingsDep, pool: PoolDep
+    plan_uuid: UUID, principal: PrincipalDep, settings: SettingsDep, pool: PoolDep
 ) -> dict[str, str]:
     """The requester gives up on this plan (plan task O6): a stuck ``needs_requester`` index is the
     expected reason, but nothing here requires that; any plan past ``draft`` may be abandoned."""
@@ -245,7 +259,7 @@ async def abandon_plan(
         plan = await plans.load(conn, plan_uuid, for_update=True)
         if plan is None:
             raise HTTPException(status_code=404, detail="no such plan")
-        if plan.requester != address:
+        if not principal.owns(plan.requester):
             raise HTTPException(status_code=403, detail="only the requester may abandon this plan")
         if plan.state == "draft":
             raise HTTPException(status_code=409, detail="a draft plan has nothing to abandon")

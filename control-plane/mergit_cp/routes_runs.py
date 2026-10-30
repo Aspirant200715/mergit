@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict
 
 from . import money, plans, runs
 from .agents import Agent
-from .auth import AddressDep, PoolDep, SettingsDep
+from .auth import PoolDep, Principal, PrincipalDep, SettingsDep
 from .db import Pool
 from .routes_plans import get_agents
 from .stream import PlanBroadcaster, sse
@@ -38,26 +38,26 @@ def get_broadcaster(request: Request) -> PlanBroadcaster:
 BroadcasterDep = Annotated[PlanBroadcaster, Depends(get_broadcaster)]
 
 
-async def _owned_plan(conn: Any, plan_uuid: UUID, address: str) -> plans.StoredPlan:
+async def _owned_plan(conn: Any, plan_uuid: UUID, principal: Principal) -> plans.StoredPlan:
     plan = await plans.load(conn, plan_uuid)
     if plan is None:
         raise HTTPException(status_code=404, detail="no such plan")
-    if plan.requester != address:
+    if not principal.owns(plan.requester):
         raise HTTPException(status_code=403, detail="only the requester may view this plan")
     return plan
 
 
 @router.get("")
-async def list_plans(address: AddressDep, pool: PoolDep) -> list[dict[str, Any]]:
+async def list_plans(principal: PrincipalDep, pool: PoolDep) -> list[dict[str, Any]]:
     async with pool.connection() as conn:
-        summaries = await runs.list_for_requester(conn, address)
+        summaries = await runs.list_for_requester(conn, principal.owned)
     return [runs.plan_summary_view(s) for s in summaries]
 
 
 @router.get("/{plan_uuid}")
-async def plan_detail(plan_uuid: UUID, address: AddressDep, pool: PoolDep) -> dict[str, Any]:
+async def plan_detail(plan_uuid: UUID, principal: PrincipalDep, pool: PoolDep) -> dict[str, Any]:
     async with pool.connection() as conn:
-        plan = await _owned_plan(conn, plan_uuid, address)
+        plan = await _owned_plan(conn, plan_uuid, principal)
         attempts = await runs.attempts(conn, plan_uuid)
         ledger = await money.list_for_plan(conn, plan_uuid)
     view = plans.view(plan)
@@ -107,13 +107,13 @@ async def internal_progress(
 async def plan_events(
     plan_uuid: UUID,
     request: Request,
-    address: AddressDep,
+    principal: PrincipalDep,
     pool: PoolDep,
     settings: SettingsDep,
     broadcaster: BroadcasterDep,
 ) -> StreamingResponse:
     async with pool.connection() as conn:
-        await _owned_plan(conn, plan_uuid, address)
+        await _owned_plan(conn, plan_uuid, principal)
     return StreamingResponse(
         _stream(pool, broadcaster, plan_uuid, request, settings.sse_poll_s),
         media_type="text/event-stream",

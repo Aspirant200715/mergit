@@ -1,6 +1,6 @@
 """Typed configuration. Every value comes from the environment; nothing here is a deployment fact."""
 
-from typing import Annotated
+from typing import Annotated, cast
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -57,6 +57,24 @@ class Settings(BaseSettings):
     session_ttl_s: int = Field(default=12 * 3600, gt=0)
     db_pool_max: int = Field(default=10, gt=0)
 
+    github_client_id: str | None = None
+    github_client_secret: SecretStr | None = None
+    google_client_id: str | None = None
+    google_client_secret: SecretStr | None = None
+    """GitHub and Google sign-in are offered only when both halves of a pair are set."""
+    oauth_state_ttl_s: int = Field(default=600, gt=0)
+
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    """587 means STARTTLS; 465 means TLS from the first byte."""
+    smtp_user: str | None = None
+    smtp_password: SecretStr | None = None
+    smtp_from: str | None = None
+    """Emailed sign-in codes are offered only when smtp_host and smtp_from are set."""
+    otp_ttl_s: int = Field(default=600, gt=0)
+    otp_max_attempts: int = Field(default=5, ge=1)
+    otp_sends_per_hour: int = Field(default=5, ge=1)
+
     worker_token: SecretStr
     """Shared secret the worker sends as ``Authorization: Bearer`` on POST /v0/internal/progress
     (plan task O7). Not named in spec/events-v0.md, which only covers the orchestrator-gateway leg;
@@ -73,6 +91,33 @@ class Settings(BaseSettings):
         # provider.
         self.planner_model = effective_model(self.planner_model)
         return self
+
+    @model_validator(mode="before")
+    @classmethod
+    def _blank_is_unset(cls, data: object) -> object:
+        # `deploy/secrets/api.env` may carry `GITHUB_CLIENT_ID=` for a method that is not set up yet.
+        if not isinstance(data, dict):
+            return data
+        values = cast(dict[str, object], data)
+        return {k: v for k, v in values.items() if not (isinstance(v, str) and v.strip() == "")}
+
+    @property
+    def public_origin(self) -> str:
+        """Where the browser reaches the web app and this API (same origin behind Caddy)."""
+        local = self.app_domain.split(":")[0] in ("localhost", "127.0.0.1")
+        return f"{'http' if local else 'https'}://{self.app_domain}"
+
+    @property
+    def github_enabled(self) -> bool:
+        return bool(self.github_client_id and self.github_client_secret)
+
+    @property
+    def google_enabled(self) -> bool:
+        return bool(self.google_client_id and self.google_client_secret)
+
+    @property
+    def email_enabled(self) -> bool:
+        return bool(self.smtp_host and self.smtp_from)
 
     @field_validator("cors_origins", "repo_hosts", mode="before")
     @classmethod

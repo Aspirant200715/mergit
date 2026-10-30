@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from mergit_worker.meter import PriceTable
 
-from . import auth, chain_events, routes_plans, routes_runs
+from . import auth, chain_events, oauth, otp, routes_plans, routes_runs
 from .agents import load_agents
 from .config import Settings
 from .db import migrate, open_pool
@@ -28,6 +28,7 @@ def create_app(
     llm: LLM | None = None,
     deliver_events: bool = True,
     process_outcomes: bool = True,
+    mailer: otp.Mailer | None = None,
 ) -> FastAPI:
     """``deliver_events=False`` leaves events in the outbox, and ``process_outcomes=False`` leaves
     finished jobs unprocessed, for tests that want to inspect or drive that state directly."""
@@ -46,6 +47,7 @@ def create_app(
         app.state.llm = llm or build_llm()
         app.state.costs = PgCostSink(pool, prices)
         app.state.broadcaster = PlanBroadcaster()
+        app.state.mailer = mailer or (otp.SmtpMailer(settings) if settings.email_enabled else None)
 
         stop = asyncio.Event()
         deliverer = EventDeliverer(
@@ -80,6 +82,9 @@ def create_app(
         allow_headers=["Content-Type"],
     )
     app.include_router(auth.router)
+    app.include_router(auth.account_router)
+    app.include_router(oauth.router)
+    app.include_router(otp.router)
     app.include_router(routes_plans.router)
     app.include_router(chain_events.router)
     app.include_router(routes_runs.router)
