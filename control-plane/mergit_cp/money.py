@@ -208,8 +208,10 @@ async def list_for_plan(conn: AsyncConnection[TupleRow], plan_uuid: UUID | str) 
 
 
 def payload(e: MoneyEvent) -> dict[str, Any]:
-    """The event's fields as the gateway sent them (spec/schemas/event.json), rebuilt from the typed
-    columns. Amounts are decimal strings, as everywhere in the API."""
+    """The event's fields rebuilt from the typed columns (spec/schemas/event.json shape). Not
+    byte-for-byte what the gateway sent: addresses are stored, and so come back, lowercase (see
+    `_columns`), not in whatever case the gateway's payload used. Amounts are decimal strings, as
+    everywhere in the API."""
     if e.kind == "credits.denied":
         return {"plan_id": e.plan_id, "reason": e.reason}
     body: dict[str, Any] = {"task_id": e.task_id}

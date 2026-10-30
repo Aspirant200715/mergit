@@ -332,8 +332,10 @@ def test_the_migration_backfills_history_from_the_raw_log(database_url: str, tmp
     url = make_conninfo(database_url, dbname=name)
     old = tmp_path / "migrations"
     old.mkdir()
+    # Every migration except the one under test, not "< 0006": a later migration added after this
+    # test was written (0009, from #15) must not also show up as newly applied below.
     for path in sorted(MIGRATIONS.glob("*.sql")):
-        if path.stem < "0006":
+        if path.stem != "0006_money_events":
             (old / path.name).write_text(path.read_text())
 
     plan_uuid = str(uuid.uuid4())
@@ -404,6 +406,14 @@ def test_the_migration_backfills_history_from_the_raw_log(database_url: str, tmp
                         "tier": "staked",
                         "tx": tx("5"),
                     },
+                )
+                await raw(
+                    conn,
+                    8,
+                    # 78 digits, same as the column's capacity, but bigger than any real uint256
+                    # (2**256 - 1 is also 78 digits): digit count alone would let this through.
+                    "task.released",
+                    {"task_id": task_id, "to": ADDR, "amount_usdc_units": "9" * 78, "tx": tx("6")},
                 )
                 assert await migrate(conn) == ["0006_money_events"]
                 cur = conn.cursor(row_factory=dict_row)

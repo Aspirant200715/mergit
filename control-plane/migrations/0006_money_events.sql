@@ -74,6 +74,10 @@ $$;
 
 CREATE TRIGGER money_events_append_only BEFORE UPDATE OR DELETE ON money_events
     FOR EACH ROW EXECUTE FUNCTION money_events_append_only();
+-- Deliberately not also BEFORE TRUNCATE: this fires for every row-level UPDATE/DELETE an application
+-- role could issue, which is the real risk. TRUNCATE needs table-owner privilege the application role
+-- isn't granted, and the test suite's own global per-test reset (conftest.py's `client` fixture)
+-- legitimately truncates every public table, including this one, between tests.
 
 -- Backfill: events already in the raw log become ledger rows, oldest first, so a deployment that upgrades
 -- keeps its history in the run API. Events that name a task or plan this service never knew stay raw-only,
@@ -102,8 +106,18 @@ LEFT JOIN plans p ON e.type = 'credits.denied' AND p.plan_id = e.payload ->> 'pl
 WHERE e.type IN ('receipt.committed', 'verdict.recorded', 'task.released', 'task.returned',
                  'challenge.opened', 'challenge.resolved', 'credits.denied')
   AND COALESCE(d.plan_uuid, p.plan_uuid) IS NOT NULL
+  -- "Too large for the column" means too large for a real uint256, not just >78 digits: the column's
+  -- own numeric(78,0) capacity (up to 10^78 - 1) is wider than uint256's actual range (up to 2^256 - 1,
+  -- also 78 digits), so digit count alone would still let a 78-digit value bigger than any real uint256
+  -- through. The regex runs first so a non-numeric payload never reaches the cast beside it.
   AND COALESCE(e.payload ->> 'amount_usdc_units', '0') ~ '^[0-9]{1,78}$'
+  AND COALESCE(e.payload ->> 'amount_usdc_units', '0')::numeric
+      <= 115792089237316195423570985008687907853269984665640564039457584007913129639935
   AND COALESCE(e.payload ->> 'bond_usdc_units', '0') ~ '^[0-9]{1,78}$'
+  AND COALESCE(e.payload ->> 'bond_usdc_units', '0')::numeric
+      <= 115792089237316195423570985008687907853269984665640564039457584007913129639935
   AND COALESCE(e.payload ->> 'challenge_id', '0') ~ '^[0-9]{1,78}$'
+  AND COALESCE(e.payload ->> 'challenge_id', '0')::numeric
+      <= 115792089237316195423570985008687907853269984665640564039457584007913129639935
 ORDER BY e.received_at, e.event_id
 ON CONFLICT DO NOTHING;
