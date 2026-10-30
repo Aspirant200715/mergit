@@ -51,7 +51,7 @@ def load_agents(path: str, config_path: str = "agents.toml") -> list[Agent]:
     if not isinstance(tables, dict):
         raise ValueError(f"{config_path} has no [agents.<name>] tables")
     configs = {
-        str(name): _ModelConfig.model_validate(table)
+        str(name): _ModelConfig.model_validate(table)  # pyright: ignore[reportUnknownArgumentType]
         for name, table in tables.items()  # pyright: ignore[reportUnknownVariableType]
     }
     seen: set[str] = set()

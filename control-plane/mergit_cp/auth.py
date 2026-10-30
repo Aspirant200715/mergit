@@ -13,7 +13,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from pydantic import BaseModel
-from siwe import SiweMessage, VerificationError, generate_nonce
+from siwe import SiweMessage, VerificationError, generate_nonce  # pyright: ignore[reportMissingTypeStubs]
 
 from .config import Settings
 from .db import Pool
