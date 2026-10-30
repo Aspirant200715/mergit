@@ -40,7 +40,7 @@ export function DraftPlanEditor({
   onChanged: () => void;
 }) {
   const { session } = useAuth();
-  const { credits } = useCredits((session?.address ?? null) as Address | null);
+  const { credits, error: creditsError } = useCredits((session?.address ?? null) as Address | null);
   const [forms, setForms] = useState<TaskForm[]>(() => toForms(plan));
   const [funding, setFunding] = useState<FundingOption>("Wallet");
   const { busy, problems, setProblems, submit } = useSubmit();
@@ -98,7 +98,9 @@ export function DraftPlanEditor({
           <span className="small c3">
             {funding === "Wallet"
               ? "You fund the plan from your wallet after approving. Nothing moves until you confirm it there."
-              : `Free credits left: ${credits ? formatUsdc(credits.remaining) : "…"} USDC. Tasks paid with credits are always audited.`}
+              : creditsError
+                ? creditsError
+                : `Free credits left: ${credits ? formatUsdc(credits.remaining) : "…"} USDC. Tasks paid with credits are always audited.`}
           </span>
         </div>
         <Problems items={problems} />

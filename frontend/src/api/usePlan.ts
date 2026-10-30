@@ -18,6 +18,9 @@ export function usePlan(planUuid: string) {
 
   useEffect(() => {
     let active = true;
+    // Marks the window this GET is in flight, so an SSE event arriving before it resolves is held
+    // in the backlog instead of being overwritten the moment "loaded" replaces `detail` wholesale.
+    dispatch({ type: "reloading" });
     getPlan(planUuid).then(
       (detail) => {
         if (active) dispatch({ type: "loaded", detail });

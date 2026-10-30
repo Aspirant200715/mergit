@@ -20,17 +20,31 @@ export type PlanStreamState = {
   detail: PlanDetail | null;
   /** Live agent steps. Not part of the detail: they are only ever streamed, never stored. */
   steps: StepEvent[];
-  /** Events that arrived before the detail did, applied as soon as it loads. */
+  /** Events that arrived before the detail did, or while a reload is in flight, applied once it lands. */
   backlog: PlanStreamEvent[];
   error: string | null;
+  /**
+   * A GET is in flight (usePlan's `reload`, called after this client's own edit or approval). While
+   * true, an SSE event is held in `backlog` instead of applied straight to the current `detail`: that
+   * GET's response is about to replace `detail` wholesale, and without this an event the stream
+   * delivers in that window would be silently lost the moment "loaded" overwrites it.
+   */
+  reloading: boolean;
 };
 
 export type PlanAction =
   | { type: "loaded"; detail: PlanDetail }
   | { type: "failed"; error: string }
-  | { type: "event"; event: PlanStreamEvent };
+  | { type: "event"; event: PlanStreamEvent }
+  | { type: "reloading" };
 
-export const initialPlanStream: PlanStreamState = { detail: null, steps: [], backlog: [], error: null };
+export const initialPlanStream: PlanStreamState = {
+  detail: null,
+  steps: [],
+  backlog: [],
+  error: null,
+  reloading: false,
+};
 
 const byIndexThenAttempt = (a: Attempt, b: Attempt) => a.index - b.index || a.attempt - b.attempt;
 const moneyKey = (m: MoneyEvent) => `${m.type}|${m.at}|${JSON.stringify(m.payload)}`;
@@ -66,6 +80,9 @@ export function applyToDetail(detail: PlanDetail, event: PlanStreamEvent): PlanD
       return { ...detail, money_events: [...detail.money_events, event.data] };
     }
     case "step.recorded":
+      // Unreachable: planReducer's "event" case routes step.recorded into `steps` before it would
+      // ever reach the backlog (the only caller of this function with a queued event), so this arm
+      // exists only to keep the switch exhaustive over PlanStreamEvent, never to run.
       return detail;
   }
 }
@@ -82,16 +99,19 @@ export function planReducer(state: PlanStreamState, action: PlanAction): PlanStr
         detail: state.backlog.reduce(applyToDetail, action.detail),
         backlog: [],
         error: null,
+        reloading: false,
       };
     case "failed":
-      return { ...state, error: action.error };
+      return { ...state, error: action.error, reloading: false };
+    case "reloading":
+      return { ...state, reloading: true };
     case "event": {
       const { event } = action;
       if (event.name === "step.recorded") {
         const steps = addStep(state.steps, event.data);
         return steps === state.steps ? state : { ...state, steps };
       }
-      if (!state.detail) return { ...state, backlog: [...state.backlog, event] };
+      if (!state.detail || state.reloading) return { ...state, backlog: [...state.backlog, event] };
       const detail = applyToDetail(state.detail, event);
       return detail === state.detail ? state : { ...state, detail };
     }

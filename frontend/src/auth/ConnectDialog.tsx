@@ -4,12 +4,13 @@ import { paths } from "../app/paths";
 import { Icon } from "../components/Icon";
 import { MergitSymbol } from "../components/MergitLogo";
 import { connectAndSignIn } from "../chain/wallet";
+import { injected } from "../chain/client";
 import { DATA_MODE } from "../config/live";
 import { useAuth } from "./context";
 import { connectWallet, DEMO_ADDRESS, randomNonce, short, signInMessage, type WalletKind } from "./session";
 
-const ALL_WALLETS: { kind: WalletKind; label: string; detected?: boolean }[] = [
-  { kind: "browser", label: "Browser wallet", detected: true },
+const ALL_WALLETS: { kind: WalletKind; label: string }[] = [
+  { kind: "browser", label: "Browser wallet" },
   { kind: "walletconnect", label: "WalletConnect" },
   { kind: "passkey", label: "Passkey" },
 ];
@@ -29,6 +30,9 @@ export function ConnectDialog() {
   const { signIn } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>({ name: "choose" });
+  // Lazily, not module-scope: a module-level check can run before an extension has injected
+  // `window.ethereum`, and would then never reflect reality for the rest of the session.
+  const [hasInjectedWallet] = useState(() => injected() !== null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -135,7 +139,7 @@ export function ConnectDialog() {
                 >
                   <span className={`wallet-chip wallet-${w.kind}`} aria-hidden="true" />
                   <span className="grow">{w.label}</span>
-                  {w.detected && <span className="badge b-ok">Detected</span>}
+                  {w.kind === "browser" && hasInjectedWallet && <span className="badge b-ok">Detected</span>}
                 </button>
               </li>
             ))}

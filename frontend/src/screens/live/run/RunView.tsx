@@ -117,6 +117,19 @@ function RunBanner({ detail, onClosed }: { detail: PlanDetail; onClosed: () => v
       </p>
     );
   }
+  // Not currently reachable (nothing transitions a plan here yet), but it's a real PlanState the
+  // schema allows; without this the page would show no banner and no way to close a "Failed" plan.
+  if (detail.state === "failed") {
+    return (
+      <div className="card pad col g10 lr-banner lr-banner-warn" role="alert">
+        <span className="strong">
+          <Icon name="hand" size={16} color="var(--amber)" /> This plan failed.
+        </span>
+        <span className="small c2">Close it to stop it and get its unspent funds back.</span>
+        <ClosePlan planUuid={detail.plan_uuid} onClosed={onClosed} />
+      </div>
+    );
+  }
   const stuck = stuckTasks(detail.tasks, detail.attempts);
   if (stuck.length === 0) return null;
   const names = stuck.map((t) => `task ${String(t.index + 1)}`).join(", ");

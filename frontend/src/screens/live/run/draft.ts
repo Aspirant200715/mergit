@@ -52,10 +52,13 @@ export function editProblems(forms: TaskForm[]): string[] {
   });
 }
 
-/** What would stop the approval on top of that: every task needs an agent, none picked twice. */
+/** What would stop the approval on top of that: every task needs an agent, none picked twice, and no
+ * more than MAX_PICKS, so a form the editor itself can't produce isn't only caught server-side after
+ * the requester has already clicked Approve. */
 export function pickProblems(forms: TaskForm[]): string[] {
   return forms.flatMap((f) => {
     if (f.agents.length === 0) return [`${taskLabel(f)}: pick an agent to run it.`];
+    if (f.agents.length > MAX_PICKS) return [`${taskLabel(f)}: pick at most ${String(MAX_PICKS)} agents.`];
     return new Set(f.agents).size === f.agents.length ? [] : [`${taskLabel(f)}: an agent is picked twice.`];
   });
 }
