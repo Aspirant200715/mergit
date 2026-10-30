@@ -91,16 +91,18 @@ on every push to `main` (and by hand from the Actions tab, where you can pick `s
    else (the workflow passes `all`, `services`, `web` or `app` as the "command"; `update.sh` rejects anything else):
 
    ```
-   restrict,command="cd ~/mergit/mergit && deploy/server/update.sh \"${SSH_ORIGINAL_COMMAND:-all}\"" ssh-ed25519 AAAA... github-deploy
+   restrict,command="cd ~/mergit/mergit && deploy/server/update.sh $SSH_ORIGINAL_COMMAND" ssh-ed25519 AAAA... github-deploy
    ```
 
 3. In the GitHub repo, Settings, Secrets and variables, Actions, add `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`
    (the private key file) and `DEPLOY_KNOWN_HOSTS` (`ssh-keyscan -t ed25519 <host>`). Then delete the local key files.
 4. Port 22 must be reachable from GitHub's runners; the Hetzner firewall (`mergit-fw`) currently allows it.
 
-What this does not do: it does not wait for the `control-plane` and `frontend` checks, so a push that breaks them still
-deploys. A build that fails leaves the running containers as they were, but a change that builds and misbehaves goes
-live. To gate on CI, protect `main` and merge through pull requests.
+Deploys are gated on CI. `deploy.yml` starts when `control-plane` or `frontend` finishes on `main`, and it only deploys when
+every CI run for that commit passed and the commit is still the tip of `main`. If CI failed, it says so in the run's
+notice and deploys nothing. Two consequences: a push that touches neither workflow's paths (docs only, `deploy/` only)
+does not deploy by itself, and a manual run from the Actions tab skips the checks. A build that fails on the server
+leaves the running containers as they were, but a change that builds and misbehaves still goes live.
 
 ## Notes
 

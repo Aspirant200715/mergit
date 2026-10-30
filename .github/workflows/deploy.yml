@@ -1,7 +1,14 @@
 name: deploy
 
-# Redeploys the Hetzner server (deploy/server/README.md) after a push to main: SSH in and run deploy/server/update.sh.
-# Render did this on every push; the server needs this workflow instead.
+# Redeploys the Hetzner server (deploy/server/README.md) by running deploy/server/update.sh over SSH.
+#
+# It runs after the CI workflows finish on main, and only deploys when every CI run for that commit passed:
+#   - control-plane and frontend only run for pushes that touch their paths, so a push may trigger one, both or neither;
+#     deploy waits for whichever ran. A push that triggers neither (docs only, say) does not deploy.
+#   - if another CI run for the same commit is still going, this run steps aside; that run's own finish starts deploy again.
+#   - it only deploys if the commit is still the tip of main, because update.sh pulls main and would otherwise ship a newer,
+#     untested commit. That newer commit's own CI starts its own deploy.
+#   - a manual run (Actions tab, "Run workflow") skips the checks, for a redeploy you decided on yourself.
 #
 # Repository secrets:
 #   DEPLOY_HOST        server hostname or IPv4
@@ -10,7 +17,9 @@ name: deploy
 #   DEPLOY_KNOWN_HOSTS output of `ssh-keyscan -t ed25519 <host>`, so the host key is pinned and not trusted on first use
 
 on:
-  push:
+  workflow_run:
+    workflows: [control-plane, frontend]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
     inputs:
@@ -22,8 +31,9 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
-# Never cancel a deploy half-way through a build; a newer push waits its turn, and update.sh pulls the latest main anyway.
+# Never cancel a deploy half-way through a build; the next one waits its turn.
 concurrency:
   group: deploy
   cancel-in-progress: false
@@ -32,8 +42,41 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    # Never deploy from a failed CI run, a pull request, or another branch.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     steps:
+      - name: Check every CI run for this commit passed
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          skip() { echo "::notice::$1"; echo "go=false" >> "$GITHUB_OUTPUT"; exit 0; }
+          if [ "$EVENT" = workflow_dispatch ]; then echo "go=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+
+          tip=$(gh api "repos/$REPO/commits/main" --jq .sha)
+          [ "$tip" = "$SHA" ] || skip "$SHA is not the tip of main any more ($tip); the newer commit deploys itself."
+
+          runs=$(gh run list --repo "$REPO" --commit "$SHA" --event push --limit 100 --json name,status,conclusion)
+          pending=$(jq '[.[] | select(.name != "deploy" and .status != "completed")] | length' <<<"$runs")
+          [ "$pending" = 0 ] || skip "$pending CI run(s) for $SHA are still going; deploy starts again when they finish."
+          bad=$(jq -r '[.[] | select(.name != "deploy" and (.conclusion | IN("success","skipped","neutral") | not)) | .name] | join(", ")' <<<"$runs")
+          [ -z "$bad" ] || skip "Not deploying $SHA: CI did not pass ($bad)."
+
+          # Two CI workflows finishing together both start a deploy; the first one wins, a retry after a failed one still runs.
+          done_already=$(gh run list --repo "$REPO" --workflow deploy --commit "$SHA" --limit 100 --json databaseId,conclusion,status \
+            | jq --argjson me "$GITHUB_RUN_ID" '[.[] | select(.databaseId < $me and (.conclusion == "success" or .status != "completed"))] | length')
+          [ "$done_already" = 0 ] || skip "$SHA is already deployed or being deployed."
+
+          echo "go=true" >> "$GITHUB_OUTPUT"
+
       - name: Check the deploy secrets are set
+        if: steps.gate.outputs.go == 'true'
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
@@ -46,6 +89,7 @@ jobs:
           done
           exit $missing
       - name: Install the key and the pinned host key
+        if: steps.gate.outputs.go == 'true'
         env:
           KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
@@ -55,6 +99,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
       - name: Run update.sh on the server
+        if: steps.gate.outputs.go == 'true'
         env:
           TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
           WHAT: ${{ inputs.what || 'all' }}
