@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Builds mergit.site and app.mergit.site on the server into $SITES_DIR (default /srv/mergit/sites), which Caddy serves.
 #   deploy/server/build-sites.sh [web|app|all]      (default: all)
+# The app calls the API on its own origin (app.<domain>, proxied by Caddy); set API_URL to point it elsewhere.
 # The app build reads the contract addresses from ../mergit-contracts/deployments/base-sepolia.json. Each site is built
 # into a new directory and swapped in only when the build succeeded, so a failed build never takes a live site down.
 set -euo pipefail
@@ -30,7 +31,7 @@ build_web() {
 build_app() {
   rm -rf "$out/app.new"
   docker build -f "$repo/deploy/docker/sites.Dockerfile" --target app-dist --output "$out/app.new" \
-    --build-arg "VITE_API_URL=https://api.$domain" \
+    --build-arg "VITE_API_URL=${API_URL:-https://app.$domain}" \
     --build-arg "VITE_GATEWAY_URL=https://gateway.$domain" \
     --build-arg "VITE_STORE_URL=https://store.$domain" \
     --build-arg "VITE_ESCROW=$(field escrow)" \

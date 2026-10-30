@@ -30,11 +30,20 @@ www.mergit.site {
 	redir https://mergit.site{uri} permanent
 }
 
-# The same frontend on live Base Sepolia data.
+# The same frontend on live Base Sepolia data, and the orchestration API on the same origin: the browser calls
+# /v0/auth, /v0/plans and /v0/agents here, so sign-in cookies are first-party and there is no CORS. The gateway and the
+# worker reach the API directly over the compose network, so /v0/chain-events and /v0/internal are deliberately not
+# proxied.
 app.mergit.site {
-	root * /srv/app
-	import site_headers
-	file_server
+	@api path /v0/auth/* /v0/plans /v0/plans/* /v0/agents
+	handle @api {
+		reverse_proxy api:8000
+	}
+	handle {
+		root * /srv/app
+		import site_headers
+		file_server
+	}
 }
 
 # Service APIs. Both allow any origin themselves (CORS), and their write endpoints need bearer tokens.
@@ -46,8 +55,8 @@ store.mergit.site {
 	reverse_proxy store:8081
 }
 
-# The orchestration API (Python control plane), from deploy/compose.controlplane.yaml. Add an A record for `api`.
-# It sets its own CORS headers (CORS_ORIGINS) and uses a Secure, HttpOnly session cookie.
+# The same API on its own name, for anything that is not the web app. Optional: the app uses app.mergit.site above.
+# Needs an A record for `api`. It sets its own CORS headers (CORS_ORIGINS) and a Secure, HttpOnly session cookie.
 api.mergit.site {
 	reverse_proxy api:8000
 }
