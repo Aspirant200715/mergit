@@ -9,6 +9,7 @@ services:
   store:     { ports: !reset [] }
   validator: { ports: !reset [] }
   gateway:   { ports: !reset [] }
+  api:       { ports: !reset [] }   # from compose.controlplane.yaml; Caddy reaches it by name
 
   caddy:
     image: caddy:2

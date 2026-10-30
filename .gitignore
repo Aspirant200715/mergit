@@ -7,3 +7,9 @@ target/
 deploy/secrets/
 .pytest_cache/
 .ruff_cache/
+
+# SSH keys must never be committed
+deploy_key*
+*.pem
+id_ed25519*
+id_rsa*
