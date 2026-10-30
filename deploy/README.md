@@ -1,5 +1,9 @@
 # Deploy
 
+**Hosting:** the whole stack and both static sites run on one Hetzner server. The runbook, DNS records and the update
+command are in [`server/README.md`](server/README.md). `compose.yaml` is the local Anvil stack, `compose.testnet.yaml`
+is the Base Sepolia stack, and `compose.server.yaml` layers Caddy and HTTPS on top of it for the server.
+
 ## Testnet money
 
 Everything in v0 runs on **Base Sepolia** with test funds. Nothing touches real money.

@@ -6,6 +6,7 @@ import { AuthContext } from "./context";
 import type { Address } from "viem";
 import { signOutLive, watchAccount } from "../chain/wallet";
 import { DATA_MODE } from "../config/live";
+import { checkSession } from "./liveSession";
 import { readSession, writeSession, type Session } from "./session";
 import { SignOutSplash } from "./SignOutSplash";
 
@@ -56,6 +57,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ),
     );
   }, [navigate]);
+
+  // On live data the remembered session must still exist on the server: its cookie expires after 12 hours and
+  // does not survive the API losing its database. A server that cannot be reached leaves the session alone.
+  useEffect(() => {
+    if (DATA_MODE !== "live" || !session) return;
+    let cancelled = false;
+    void checkSession(session.address).then((result) => {
+      if (cancelled || result !== "expired") return;
+      writeSession(null);
+      setSession(null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
 
   // On live data, a different wallet account ends the session: the signed-in address must be the one that funds.
   useEffect(() => {

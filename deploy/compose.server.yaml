@@ -1,0 +1,24 @@
+# Hetzner server override: the testnet stack plus Caddy, which terminates HTTPS and serves the static sites.
+#   docker compose -f deploy/compose.testnet.yaml -f deploy/compose.server.yaml up -d --build
+# Needs Compose >= 2.24 (for `!reset`). The runbook is deploy/server/README.md.
+#
+# The services stop publishing their own ports: Caddy reaches them by name on the compose network, so nothing
+# but 80 and 443 is open on the host. (Docker's published ports skip the host firewall, which is why this matters.)
+
+services:
+  store:     { ports: !reset [] }
+  validator: { ports: !reset [] }
+  gateway:   { ports: !reset [] }
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /srv/mergit/sites:/srv:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [store, gateway]
+
+volumes: { caddy_data: {}, caddy_config: {} }
