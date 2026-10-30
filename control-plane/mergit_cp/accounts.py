@@ -27,6 +27,11 @@ COOKIE = "mergit_session"
 
 Conn = AsyncConnection[TupleRow]
 Provider = Literal["github", "google", "email"]
+Intent = Literal["login", "register"]
+
+
+class NoAccount(Exception):
+    """Signing in (not registering) with an identity or wallet nobody has registered."""
 
 
 class IdentityTaken(Exception):
@@ -137,6 +142,15 @@ async def _identity_owner(conn: Conn, provider: str, subject: str) -> UUID | Non
     )
     row = await cur.fetchone()
     return row[0] if row else None
+
+
+async def identity_exists(conn: Conn, provider: str, subject: str) -> bool:
+    return await _identity_owner(conn, provider, subject) is not None
+
+
+async def wallet_exists(conn: Conn, address: str) -> bool:
+    cur = await conn.execute("SELECT 1 FROM wallets WHERE address = %s", (address,))
+    return await cur.fetchone() is not None
 
 
 async def user_for_wallet(conn: Conn, address: str) -> UUID:

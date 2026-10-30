@@ -526,3 +526,88 @@ def test_another_user_cannot_see_the_trial_plan(client: TestClient) -> None:
     google_login(client)
     assert client.get(f"/v0/plans/{uuid}").status_code == 403
     assert client.get("/v0/plans").json() == []
+
+
+# --- sign in vs create account ------------------------------------------------------------------------------
+
+
+def test_signing_in_with_an_identity_nobody_registered_is_refused(client: TestClient) -> None:
+    start = client.get("/v0/auth/github/start", params={"intent": "login"})
+    sent = parse_qs(urlsplit(start.headers["location"]).query)["state"][0]
+    with respx.mock(assert_all_called=False) as mock:
+        mock.post(GITHUB_TOKEN).respond(json={"access_token": "t"})
+        mock.get(GITHUB_USER).respond(json={"id": 777, "login": "newcomer"})
+        mock.get(GITHUB_EMAILS).respond(json=[])
+        response = client.get("/v0/auth/github/callback", params={"code": "c", "state": sent})
+    assert response.headers["location"].endswith("/signin?error=no_account")
+    assert client.get("/v0/auth/me").status_code == 401
+    # Nothing was created: registering with the same account afterwards makes the user, once.
+    start = client.get("/v0/auth/github/start", params={"intent": "register"})
+    sent = parse_qs(urlsplit(start.headers["location"]).query)["state"][0]
+    with respx.mock(assert_all_called=False) as mock:
+        mock.post(GITHUB_TOKEN).respond(json={"access_token": "t"})
+        mock.get(GITHUB_USER).respond(json={"id": 777, "login": "newcomer"})
+        mock.get(GITHUB_EMAILS).respond(json=[])
+        done = client.get("/v0/auth/github/callback", params={"code": "c", "state": sent})
+    assert done.headers["location"] == "https://app.mergit.test/app"
+
+
+def test_signing_in_with_a_registered_identity_works(client: TestClient) -> None:
+    github_login(client)  # registers (the default intent creates)
+    user = me(client)["user_id"]
+    client.post("/v0/auth/logout")
+    client.cookies.clear()
+    start = client.get("/v0/auth/github/start", params={"intent": "login"})
+    sent = parse_qs(urlsplit(start.headers["location"]).query)["state"][0]
+    with respx.mock(assert_all_called=False) as mock:
+        mock.post(GITHUB_TOKEN).respond(json={"access_token": "t"})
+        mock.get(GITHUB_USER).respond(json={"id": 4242, "login": "octo"})
+        mock.get(GITHUB_EMAILS).respond(json=[])
+        response = client.get("/v0/auth/github/callback", params={"code": "c", "state": sent})
+    assert response.headers["location"] == "https://app.mergit.test/app"
+    assert me(client)["user_id"] == user
+
+
+def test_registering_with_an_identity_that_already_exists_just_signs_in(client: TestClient) -> None:
+    github_login(client)
+    user = me(client)["user_id"]
+    client.cookies.clear()
+    github_login(client)  # the default intent is register
+    assert me(client)["user_id"] == user
+
+
+def test_an_unknown_intent_is_rejected(client: TestClient) -> None:
+    assert client.get("/v0/auth/github/start", params={"intent": "admin"}).status_code == 422
+
+
+def test_email_sign_in_for_an_unregistered_address_is_refused_and_keeps_the_code(
+    client: TestClient, outbox: Outbox
+) -> None:
+    client.post("/v0/auth/email/start", json={"email": "new@example.com"})
+    code = outbox.last_code()
+    body = {"email": "new@example.com", "code": code}
+    refused = client.post("/v0/auth/email/verify", json=body | {"intent": "login"})
+    assert refused.status_code == 404
+    assert refused.json()["detail"] == "no_account"
+    assert client.get("/v0/auth/me").status_code == 401
+    # The code was not spent: creating the account with it still works.
+    assert client.post("/v0/auth/email/verify", json=body | {"intent": "register"}).status_code == 200
+
+
+def test_wallet_sign_in_for_an_unregistered_wallet_is_refused(client: TestClient) -> None:
+    refused = client.post(
+        "/v0/auth/verify", json=_signed_by(Account.create(), _nonce(client)) | {"intent": "login"}
+    )
+    assert refused.status_code == 404
+    assert refused.json()["detail"] == "no_account"
+    assert client.get("/v0/auth/me").status_code == 401
+
+
+def test_wallet_sign_in_for_a_registered_wallet_works(client: TestClient) -> None:
+    account = Account.create()
+    client.post("/v0/auth/verify", json=_signed_by(account, _nonce(client)) | {"intent": "register"})
+    user = me(client)["user_id"]
+    client.cookies.clear()
+    again = client.post("/v0/auth/verify", json=_signed_by(account, _nonce(client)) | {"intent": "login"})
+    assert again.status_code == 200
+    assert me(client)["user_id"] == user

@@ -86,6 +86,7 @@ class StartBody(BaseModel):
 
 class VerifyBody(StartBody):
     code: str
+    intent: accounts.Intent = "register"
 
     @field_validator("code")
     @classmethod
@@ -147,7 +148,17 @@ async def verify(
         row = await cur.fetchone()
         accepted = False
         if row is not None and row[2] < settings.otp_max_attempts:
-            accepted = hmac.compare_digest(bytes(row[1]), _code_hash(settings, body.email, body.code))
+            right = hmac.compare_digest(bytes(row[1]), _code_hash(settings, body.email, body.code))
+            unregistered = (
+                body.intent == "login"
+                and principal is None
+                and not await accounts.identity_exists(conn, "email", body.email)
+            )
+            if right and unregistered:
+                # Said only after the code proves the address is theirs, so a stranger cannot learn who has an
+                # account. The code is not spent: the same one still creates the account.
+                raise HTTPException(status_code=404, detail="no_account")
+            accepted = right
             # A wrong guess is counted and a right one is spent, in the same transaction as the check.
             if accepted:
                 await conn.execute("UPDATE email_otps SET used_at = now() WHERE otp_id = %s", (row[0],))

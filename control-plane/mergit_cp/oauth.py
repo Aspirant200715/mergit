@@ -106,7 +106,9 @@ async def providers(settings: SettingsDep) -> dict[str, bool]:
 
 
 @router.get("/{provider}/start")
-async def start(provider: str, settings: SettingsDep, pool: PoolDep) -> RedirectResponse:
+async def start(
+    provider: str, settings: SettingsDep, pool: PoolDep, intent: accounts.Intent = "register"
+) -> RedirectResponse:
     spec = PROVIDERS.get(provider)
     creds = credentials(settings, provider)
     if spec is None or creds is None:
@@ -117,8 +119,9 @@ async def start(provider: str, settings: SettingsDep, pool: PoolDep) -> Redirect
     expires = datetime.now(UTC) + timedelta(seconds=settings.oauth_state_ttl_s)
     async with pool.connection() as conn:
         await conn.execute(
-            "INSERT INTO oauth_states (state, provider, code_verifier, expires_at) VALUES (%s, %s, %s, %s)",
-            (state, provider, verifier, expires),
+            "INSERT INTO oauth_states (state, provider, code_verifier, expires_at, intent)"
+            " VALUES (%s, %s, %s, %s, %s)",
+            (state, provider, verifier, expires, intent),
         )
     query = urlencode(
         {
@@ -216,7 +219,7 @@ async def callback(
         async with pool.connection() as conn:
             cur = await conn.execute(
                 "UPDATE oauth_states SET used_at = now() WHERE state = %s AND provider = %s"
-                " AND used_at IS NULL AND expires_at > now() RETURNING code_verifier",
+                " AND used_at IS NULL AND expires_at > now() RETURNING code_verifier, intent",
                 (state, provider),
             )
             row = await cur.fetchone()
@@ -230,6 +233,12 @@ async def callback(
 
         link_to = principal.user_id if principal else None
         async with pool.connection() as conn, conn.transaction():
+            if (
+                row[1] == "login"
+                and link_to is None
+                and not await accounts.identity_exists(conn, spec.name, person.subject)
+            ):
+                raise LoginFailed("no_account")
             try:
                 user_id = await accounts.sign_in_identity(
                     conn,

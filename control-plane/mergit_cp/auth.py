@@ -32,6 +32,8 @@ PoolDep = Annotated[Pool, Depends(get_pool)]
 class VerifyBody(BaseModel):
     message: str
     signature: str
+    intent: accounts.Intent = "register"
+    """`login` refuses a wallet nobody has registered; `register` creates the account on first use."""
 
 
 def _token_hash(settings: Settings, token: str) -> bytes:
@@ -87,6 +89,8 @@ async def verify(
     address = message.address.lower()
     async with pool.connection() as conn, conn.transaction():
         await _consume_nonce(conn, message.nonce)
+        if body.intent == "login" and not await accounts.wallet_exists(conn, address):
+            raise HTTPException(status_code=404, detail="no_account")
         user_id = await accounts.user_for_wallet(conn, address)
         token = await accounts.create_session(conn, settings, user_id, address)
     accounts.set_session_cookie(response, settings, token)
