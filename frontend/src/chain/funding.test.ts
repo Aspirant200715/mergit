@@ -1,5 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { planFunding } from "./funding";
+import { parseUsdc, planFunding, usdcText } from "./funding";
+
+describe("parseUsdc and usdcText", () => {
+  it("round-trips every digit a task budget can have", () => {
+    expect(parseUsdc("0.333333")).toBe(333_333n);
+    expect(usdcText(333_333n)).toBe("0.333333");
+    expect(parseUsdc(usdcText(2_500_000n))).toBe(2_500_000n);
+  });
+
+  it("accepts whole amounts and surrounding spaces", () => {
+    expect(parseUsdc(" 5 ")).toBe(5_000_000n);
+  });
+
+  it("refuses anything that is not a plain amount, instead of rounding it", () => {
+    for (const bad of ["", "abc", "-1", "1.2345678", "1e6", "1,5", "."]) expect(parseUsdc(bad), bad).toBeNull();
+  });
+});
 
 const CHAIN = { id: 84532, name: "Base Sepolia" };
 

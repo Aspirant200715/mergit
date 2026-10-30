@@ -39,7 +39,12 @@ export async function installWallet(context: BrowserContext, opts: { chainId?: n
   await context.addInitScript(
     ({ me, chainId }) => {
       const listeners: Record<string, Array<(...a: unknown[]) => void>> = {};
-      const state = { accounts: [me] as string[], chainId, signed: [] as string[] };
+      const state = {
+        accounts: [me] as string[],
+        chainId,
+        signed: [] as string[],
+        sent: [] as Array<{ to: string; data: string }>,
+      };
       const emit = (event: string, ...args: unknown[]) => {
         (listeners[event] ?? []).forEach((l) => {
           l(...args);
@@ -73,6 +78,12 @@ export async function installWallet(context: BrowserContext, opts: { chainId?: n
               case "personal_sign":
                 state.signed.push(typeof params?.[0] === "string" ? params[0] : "");
                 return `0x${"11".repeat(65)}`;
+              case "eth_sendTransaction": {
+                // Every transaction "lands": the fake node answers any receipt with success.
+                const tx = params?.[0] as { to: string; data: string };
+                state.sent.push({ to: tx.to, data: tx.data });
+                return `0x${state.sent.length.toString(16).padStart(64, "0")}`;
+              }
               default:
                 throw new Error(`fake wallet: unsupported ${method}`);
             }
@@ -89,14 +100,14 @@ export async function installWallet(context: BrowserContext, opts: { chainId?: n
   );
 }
 
-const CORS = (route: Route) => ({
+export const CORS = (route: Route) => ({
   "access-control-allow-origin": route.request().headers()["origin"] ?? "*",
   "access-control-allow-credentials": "true",
   "access-control-allow-headers": "content-type",
-  "access-control-allow-methods": "GET, POST, OPTIONS",
+  "access-control-allow-methods": "GET, POST, PATCH, OPTIONS",
 });
 
-function json(route: Route, body: unknown, status = 200) {
+export function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({
     status,
     headers: { ...CORS(route), "content-type": "application/json" },
@@ -121,6 +132,25 @@ function rpc(b: Backend) {
           return hex(100);
         case "eth_getBalance":
           return hex(b.ethWei ?? 0n);
+        case "eth_getTransactionReceipt": {
+          const [hash] = req.params as [Hex];
+          return {
+            transactionHash: hash,
+            transactionIndex: "0x0",
+            blockHash: `0x${"cd".repeat(32)}`,
+            blockNumber: hex(100),
+            from: ME,
+            to: LIVE_ENV.VITE_ESCROW,
+            cumulativeGasUsed: hex(50_000),
+            gasUsed: hex(50_000),
+            effectiveGasPrice: hex(1),
+            contractAddress: null,
+            logs: [],
+            logsBloom: `0x${"00".repeat(256)}`,
+            status: "0x1",
+            type: "0x2",
+          };
+        }
         case "eth_call": {
           const data = (req.params[0] as { data: string }).data;
           if (data.startsWith("0x70a08231")) return word(b.usdcUnits ?? 0n); // balanceOf

@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { approvals as initial } from "../mock/data";
+import { DATA_MODE } from "../config/live";
+import { approvals as mockApprovals } from "../mock/data";
 import { useToast } from "../toast/context";
 import { ApprovalsContext, type ApprovalItem } from "./approvals";
+
+// The v0 control plane has no mid-task asks: a requester's decisions are the plan approval and a stuck
+// task, both on the run screen. Live data starts with none rather than showing the design's samples.
+const initial = DATA_MODE === "live" ? [] : mockApprovals;
 
 /**
  * Pending approval asks, shared by the nav badge and the Overview list. Each ask
