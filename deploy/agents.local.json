@@ -1,0 +1,19 @@
+{
+  "agents": [
+    {
+      "agent_id": "1",
+      "metadata_uri": "",
+      "name": "claude-worker",
+      "operator": "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
+      "runtime_key": "0x04dd2cbB93556Fdf4314Cad0cA1E17A03601c839"
+    },
+    {
+      "agent_id": "2",
+      "metadata_uri": "",
+      "name": "second-worker",
+      "operator": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
+      "runtime_key": "0xc55642E01B0875dEF665dE38C19c1D3E479B6ca1"
+    }
+  ],
+  "network": "local"
+}

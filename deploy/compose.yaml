@@ -84,6 +84,62 @@ services:
       deploy: { condition: service_completed_successfully }
       postgres: { condition: service_healthy }
 
-  # The orchestration API and the agent worker are added by the orchestration track (plan task O10):
-  # api:    { build: ../control-plane, ports: ["8000:8000"], ... }
-  # worker: { build: { context: ../control-plane, dockerfile: worker.Dockerfile }, ... }
+  # Control plane (plan task O10): its own Postgres (control-plane/README.md — it does not share the
+  # gateway's database; both have tables named plans/tasks/outbox), the API and the agent worker.
+  cp_postgres:
+    image: postgres:16
+    environment: { POSTGRES_PASSWORD: mergit, POSTGRES_DB: mergit_cp }
+    healthcheck: { test: ["CMD", "pg_isready", "-U", "postgres"], interval: 2s, retries: 30 }
+
+  api:
+    build: { context: .., dockerfile: control-plane/Dockerfile }
+    image: mergit-api:local
+    restart: unless-stopped
+    ports: ["8000:8000"]
+    depends_on:
+      cp_postgres: { condition: service_healthy }
+      deploy: { condition: service_completed_successfully }
+    environment:
+      DATABASE_URL: postgres://postgres:mergit@cp_postgres:5432/mergit_cp
+      APP_DOMAIN: localhost
+      SESSION_SECRET: local-session-secret-dev-only-do-not-use-for-anything-real
+      GATEWAY_URL: http://gateway:8082
+      STORE_URL: http://store:8081
+      AGENTS_FILE: /app/deploy/agents.local.json
+      PLANNER_MODEL: claude-haiku-4-5
+      EVENTS_TOKEN: local-events-token
+      CHAIN_EVENTS_TOKEN: local-chain-events-token
+      WORKER_TOKEN: local-worker-progress-token
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY before starting the planner}
+
+  worker:
+    build: { context: .., dockerfile: control-plane/worker.Dockerfile }
+    image: mergit-worker:local
+    restart: unless-stopped
+    depends_on:
+      cp_postgres: { condition: service_healthy }
+      deploy: { condition: service_completed_successfully }
+      api: { condition: service_started }
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Must be the identical path on the host and in this container: sandboxes are started through
+      # the host Docker socket, which resolves this bind source itself (control-plane/README.md).
+      - /var/lib/mergit/workspaces:/var/lib/mergit/workspaces
+      - ../../mergit-contracts/deployments:/deployments:ro
+    environment:
+      DATABASE_URL: postgres://postgres:mergit@cp_postgres:5432/mergit_cp
+      GATEWAY_URL: http://gateway:8082
+      STORE_URL: http://store:8081
+      EVENTS_TOKEN: local-events-token
+      STORE_WRITE_TOKEN: local-store-token
+      DEPLOYMENT_FILE: /deployments/local.json
+      AGENTS_FILE: /app/deploy/agents.local.json
+      CONTROL_PLANE_URL: http://api:8000
+      WORKER_TOKEN: local-worker-progress-token
+      SANDBOX_IMAGE: mergit-sandbox:dev
+      SANDBOX_WORKSPACE_ROOT: /var/lib/mergit/workspaces
+      # Freshly generated for this local stack (never used anywhere real), matching the runtime_key
+      # addresses in deploy/agents.local.json. Not the shared-example deploy/agents.example.json.
+      MERGIT_AGENT_KEY_1: "0x5d494b945348034ee48abb4651b80cc519f857de563b0df0fbe7cc1b2c28389a"
+      MERGIT_AGENT_KEY_2: "0xcb78d92ca5e24d6c4bbe912b25ee362c982f591ecba1afcac7f3b18feb3165d7"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY before starting the worker}
