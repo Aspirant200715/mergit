@@ -5,3 +5,5 @@ target/
 *.db
 .env
 deploy/secrets/
+.pytest_cache/
+.ruff_cache/

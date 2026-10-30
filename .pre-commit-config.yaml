@@ -1,0 +1,18 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        files: ^control-plane/
+        args: [--config, control-plane/pyproject.toml]
+      - id: ruff-format
+        files: ^control-plane/
+        args: [--config, control-plane/pyproject.toml]
+  - repo: local
+    hooks:
+      - id: pyright
+        name: pyright (control-plane, strict)
+        entry: bash -c 'cd control-plane && uv run pyright'
+        language: system
+        files: ^control-plane/.*\.py$
+        pass_filenames: false

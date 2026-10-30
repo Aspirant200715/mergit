@@ -1,0 +1,50 @@
+name: control-plane
+
+on:
+  pull_request:
+    paths:
+      - "control-plane/**"
+      - "runtime/py/**"
+      - "runtime/receipt/**"
+      - "spec/**"
+      - ".github/workflows/control-plane.yml"
+  push:
+    branches: [main]
+    paths:
+      - "control-plane/**"
+      - "runtime/py/**"
+      - "runtime/receipt/**"
+      - "spec/**"
+      - ".github/workflows/control-plane.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: control-plane-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: control-plane
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: dtolnay/rust-toolchain@stable # the mergit_receipt binding is built from source by maturin
+      - run: uv sync --python 3.13 --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pyright
+      - name: Unit tests
+        run: uv run pytest
+      - name: Sandbox image
+        run: docker build -t mergit-sandbox:dev sandbox
+      - name: Docker and Postgres tests
+        run: uv run pytest -m "docker or postgres"
