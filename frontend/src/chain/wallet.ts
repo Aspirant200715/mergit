@@ -4,6 +4,12 @@ import { short, type Session } from "../auth/session";
 import { injected, switchChain, walletChainId } from "./client";
 import { buildSignIn } from "./siwe";
 
+/** The API's address without a trailing slash. An empty one would send sign-in to the page's own origin. */
+export function apiBase(url: string = LIVE.apiUrl): string {
+  if (!url) throw new Error("Mergit's API address is not configured for this build (VITE_API_URL).");
+  return url.replace(/\/+$/, "");
+}
+
 /** Signs in with the browser wallet: connect, check the chain, sign an EIP-4361 message, open a session. */
 export async function connectAndSignIn(onMessage?: (message: string) => void): Promise<Session> {
   const provider = injected();
@@ -16,9 +22,13 @@ export async function connectAndSignIn(onMessage?: (message: string) => void): P
     throw new Error(`Switch your wallet to ${LIVE.chainName}, then sign in again.`);
   }
 
-  const nonceRes = await fetch(`${LIVE.apiUrl}/v0/auth/nonce`, { credentials: "include" });
+  const api = apiBase();
+  const nonceRes = await fetch(`${api}/v0/auth/nonce`, { credentials: "include" }).catch(() => {
+    throw new Error("Mergit's API is unreachable. Check your connection and try again.");
+  });
   if (!nonceRes.ok) throw new Error("Mergit could not start a sign-in. Try again in a moment.");
-  const { nonce } = (await nonceRes.json()) as { nonce: string };
+  const { nonce } = (await nonceRes.json().catch(() => ({}))) as { nonce?: string };
+  if (!nonce) throw new Error("Mergit's API did not answer like the sign-in service. Check its address.");
   const message = buildSignIn({
     address,
     nonce,
@@ -30,7 +40,7 @@ export async function connectAndSignIn(onMessage?: (message: string) => void): P
   // personal_sign takes the message hex-encoded (EIP-1474); the wallet shows it as text.
   const signature = await provider.request({ method: "personal_sign", params: [toHex(message), address] });
 
-  const verify = await fetch(`${LIVE.apiUrl}/v0/auth/verify`, {
+  const verify = await fetch(`${api}/v0/auth/verify`, {
     method: "POST",
     credentials: "include",
     headers: { "content-type": "application/json" },
@@ -41,7 +51,7 @@ export async function connectAndSignIn(onMessage?: (message: string) => void): P
 }
 
 export async function signOutLive(): Promise<void> {
-  await fetch(`${LIVE.apiUrl}/v0/auth/logout`, { method: "POST", credentials: "include" }).catch(() => undefined);
+  await fetch(`${apiBase()}/v0/auth/logout`, { method: "POST", credentials: "include" }).catch(() => undefined);
 }
 
 /** Calls `onChange` when the wallet switches to an account other than `address`, or disconnects. */

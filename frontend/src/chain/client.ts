@@ -35,22 +35,48 @@ export function walletClient(account: Address): WalletClient<Transport, Chain, A
   return createWalletClient({ account, chain, transport: custom(provider) });
 }
 
-export async function walletChainId(): Promise<number> {
-  const provider = injected();
+export async function walletChainId(provider: EIP1193Provider | null = injected()): Promise<number> {
   if (!provider) return 0;
   return Number(await provider.request({ method: "eth_chainId" }));
 }
 
-/** Asks the wallet to switch to the configured chain. Returns whether it did. */
-export async function switchChain(): Promise<boolean> {
-  const provider = injected();
+const EXPLORERS: Record<number, string> = { 84532: "https://sepolia.basescan.org" };
+
+/** A wallet that has never seen the chain answers a switch with 4902 (some wallets only say so in the message). */
+function isUnknownChain(error: unknown): boolean {
+  const e = error as { code?: number; message?: string } | null;
+  return e?.code === 4902 || /unrecognized chain/i.test(e?.message ?? "");
+}
+
+/**
+ * Asks the wallet to switch to the configured chain, and to add it first when the wallet does not know it.
+ * Returns whether the wallet ended up on that chain.
+ */
+export async function switchChain(provider: EIP1193Provider | null = injected()): Promise<boolean> {
   if (!provider) return false;
+  const chainId = `0x${LIVE.chainId.toString(16)}` as const;
+  const switchTo = () => provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId }] });
   try {
-    await provider.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: `0x${LIVE.chainId.toString(16)}` }],
-    });
-    return (await walletChainId()) === LIVE.chainId;
+    try {
+      await switchTo();
+    } catch (error) {
+      if (!isUnknownChain(error)) throw error;
+      const explorer = EXPLORERS[LIVE.chainId];
+      await provider.request({
+        method: "wallet_addEthereumChain",
+        params: [
+          {
+            chainId,
+            chainName: LIVE.chainName,
+            nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+            rpcUrls: [LIVE.rpcUrl],
+            ...(explorer ? { blockExplorerUrls: [explorer] } : {}),
+          },
+        ],
+      });
+      await switchTo();
+    }
+    return (await walletChainId(provider)) === LIVE.chainId;
   } catch {
     return false;
   }
