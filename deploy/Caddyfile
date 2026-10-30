@@ -1,0 +1,54 @@
+# Caddy for the Hetzner server (deploy/compose.server.yaml). Caddy gets and renews the HTTPS certificates itself;
+# it needs the names below to resolve to this server first (see deploy/server/README.md).
+#
+# The sites are built by deploy/server/build-sites.sh into /srv/mergit/sites/{web,app}, mounted here as /srv.
+# The validator is deliberately not exposed: only the gateway talks to it.
+{
+	email hello@mergit.site
+}
+
+(site_headers) {
+	encode zstd gzip
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	# The apps use createBrowserRouter, so any unknown path must fall back to index.html.
+	try_files {path} /index.html
+}
+
+# The public site: the design over mock data.
+mergit.site {
+	root * /srv/web
+	import site_headers
+	file_server
+}
+
+www.mergit.site {
+	redir https://mergit.site{uri} permanent
+}
+
+# The same frontend on live Base Sepolia data.
+app.mergit.site {
+	root * /srv/app
+	import site_headers
+	file_server
+}
+
+# Service APIs. Both allow any origin themselves (CORS), and their write endpoints need bearer tokens.
+gateway.mergit.site {
+	reverse_proxy gateway:8082
+}
+
+store.mergit.site {
+	reverse_proxy store:8081
+}
+
+# The orchestration API (Python control plane) is not on main yet. When it is, run it on the host at :8000 and
+# enable this block, then add an A record for `api`:
+#
+# api.mergit.site {
+# 	reverse_proxy host.docker.internal:8000
+# }
