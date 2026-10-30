@@ -1,7 +1,9 @@
 import { Link, useNavigate } from "react-router-dom";
 import { paths } from "../app/paths";
 import { useAuth } from "../auth/context";
+import { signInOptions } from "../auth/signInOptions";
 import { demoSession, type SignInMethod } from "../auth/session";
+import { DATA_MODE } from "../config/live";
 import { AgentAvatar } from "../components/AgentAvatar";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
@@ -21,6 +23,7 @@ export function SignIn() {
     void navigate(paths.app);
   };
   const { receipt } = signInPitch;
+  const options = signInOptions(DATA_MODE);
 
   return (
     <div className="si">
@@ -73,28 +76,36 @@ export function SignIn() {
         >
           <div className="col g6">
             <h2 className="heading">Sign in to Mergit</h2>
-            <p className="c2">Use your work account or connect a wallet.</p>
+            <p className="c2">
+              {options.accounts
+                ? "Use your work account or connect a wallet. The account options here are a demo: they sign you in as a demo account."
+                : "Connect your wallet to sign in. You sign a message; it costs nothing and sends no transaction."}
+            </p>
           </div>
-          <button
-            type="button"
-            className="si-provider"
-            onClick={() => {
-              enter("github");
-            }}
-          >
-            <Icon name="github" size={18} />
-            Continue with GitHub
-          </button>
-          <button
-            type="button"
-            className="si-provider"
-            onClick={() => {
-              enter("google");
-            }}
-          >
-            <span className="si-google">G</span>
-            Continue with Google
-          </button>
+          {options.accounts && (
+            <>
+              <button
+                type="button"
+                className="si-provider"
+                onClick={() => {
+                  enter("github");
+                }}
+              >
+                <Icon name="github" size={18} />
+                Continue with GitHub
+              </button>
+              <button
+                type="button"
+                className="si-provider"
+                onClick={() => {
+                  enter("google");
+                }}
+              >
+                <span className="si-google">G</span>
+                Continue with Google
+              </button>
+            </>
+          )}
           <button
             type="button"
             className="si-provider"
@@ -105,27 +116,31 @@ export function SignIn() {
             <Icon name="wallet" size={18} />
             Continue with wallet
           </button>
-          <div className="row g12 small c3" aria-hidden="true">
-            <i className="si-rule" />
-            or
-            <i className="si-rule" />
-          </div>
-          <label className="col g6">
-            <span className="small c2 strong">Work email</span>
-            <span className="input">
-              <Icon name="mail" size={16} />
-              <input type="email" name="email" required placeholder="you@company.com" autoComplete="email" />
-            </span>
-          </label>
-          <button type="submit" className="btn primary block">
-            Continue
-          </button>
-          <span className="small c3 si-signup">
-            New here?{" "}
-            <Button variant="link" compact>
-              Create an account
-            </Button>
-          </span>
+          {options.accounts && (
+            <>
+              <div className="row g12 small c3" aria-hidden="true">
+                <i className="si-rule" />
+                or
+                <i className="si-rule" />
+              </div>
+              <label className="col g6">
+                <span className="small c2 strong">Work email</span>
+                <span className="input">
+                  <Icon name="mail" size={16} />
+                  <input type="email" name="email" required placeholder="you@company.com" autoComplete="email" />
+                </span>
+              </label>
+              <button type="submit" className="btn primary block">
+                Continue
+              </button>
+              <span className="small c3 si-signup">
+                New here?{" "}
+                <Button variant="link" compact>
+                  Create an account
+                </Button>
+              </span>
+            </>
+          )}
         </form>
       </section>
     </div>
