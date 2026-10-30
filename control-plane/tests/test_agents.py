@@ -54,3 +54,17 @@ def test_flat_tables_are_rejected(agents_files: tuple[Path, Path]) -> None:
     config.write_text('[coder-a]\nmodel = "m"\nsystem_prompt = "p"\n')
     with pytest.raises(ValueError, match="agents"):
         load_agents(str(chain), str(config))
+
+
+def test_the_testnet_agent_is_named_in_agents_toml():
+    """`SeedAgents` in mergit-contracts registers the testnet agent as `mergit-coder-0`; the API and the
+    worker both refuse to start for a deployed agent that `agents.toml` does not name."""
+    import tomllib
+    from pathlib import Path
+
+    from mergit_worker.meter import PriceTable
+
+    root = Path(__file__).resolve().parents[1]
+    entry = tomllib.loads((root / "agents.toml").read_text())["agents"]["mergit-coder-0"]
+    assert entry["system_prompt"].strip()
+    PriceTable.load(root / "prices.toml").price(entry["model"])  # priced, or the worker refuses to start
