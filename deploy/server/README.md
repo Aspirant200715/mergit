@@ -74,9 +74,10 @@ GATEWAY_URL=https://gateway.mergit.site deploy/smoke-credits.sh <your-wallet-add
 ## Updating
 
 ```bash
-cd ~/mergit/mergit && git pull
-docker compose -f deploy/compose.testnet.yaml -f deploy/compose.server.yaml up -d --build   # Rust services changed
-deploy/server/build-sites.sh [web|app]                                                      # frontend changed
+cd ~/mergit/mergit
+deploy/server/update.sh            # pull both repos, rebuild services and both sites, then check /healthz
+deploy/server/update.sh services   # only the Rust services and Caddy (fast)
+deploy/server/update.sh app        # only the frontend: web or app
 ```
 
 Render deployed on every push. This does not: someone has to run the update.

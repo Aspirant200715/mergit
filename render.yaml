@@ -1,5 +1,9 @@
 # Render Blueprint: the two static sites only, which are free and need no card.
 #
+# NOT LIVE since 2026-10-30: mergit.site, www and app.mergit.site are served from the Hetzner server (see
+# deploy/server/README.md). Their DNS points there. This file is kept as the rollback path only: to use it,
+# point the DNS records back at Render first.
+#
 # mergit-web is the public site at mergit.site: the design over mock data (frontend/src/mock), unchanged.
 # mergit-app is the same frontend on live data at app.mergit.site, on Base Sepolia testnet money only.
 # The Rust services (store, validator, gateway), Postgres and the agent worker need disks and an always-on
