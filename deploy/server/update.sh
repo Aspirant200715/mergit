@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 what=${1:-all}
-compose() { docker compose -f deploy/compose.testnet.yaml -f deploy/compose.server.yaml "$@"; }
+compose() { docker compose -f deploy/compose.testnet.yaml -f deploy/compose.controlplane.yaml -f deploy/compose.server.yaml "$@"; }
 
 case "$what" in all|services|web|app) ;; *) echo "usage: $0 [all|services|web|app]" >&2; exit 2 ;; esac
 

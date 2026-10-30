@@ -46,9 +46,8 @@ store.mergit.site {
 	reverse_proxy store:8081
 }
 
-# The orchestration API (Python control plane) is not on main yet. When it is, run it on the host at :8000 and
-# enable this block, then add an A record for `api`:
-#
-# api.mergit.site {
-# 	reverse_proxy host.docker.internal:8000
-# }
+# The orchestration API (Python control plane), from deploy/compose.controlplane.yaml. Add an A record for `api`.
+# It sets its own CORS headers (CORS_ORIGINS) and uses a Secure, HttpOnly session cookie.
+api.mergit.site {
+	reverse_proxy api:8000
+}

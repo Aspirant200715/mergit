@@ -9,7 +9,7 @@ One server (Hetzner CPX32, Nuremberg) runs everything that used to run on a lapt
 | `gateway.mergit.site` | gateway (chain relay, credits) | Caddy, then `gateway:8082` |
 | `store.mergit.site` | evidence store (receipt bundles) | Caddy, then `store:8081` |
 | _(not public)_ | validator, Postgres | compose network only |
-| `api.mergit.site` | orchestration API | _not on main yet; block is commented out in `Caddyfile`_ |
+| `api.mergit.site` | orchestration API (control plane) | Caddy, then `api:8000`; needs `deploy/compose.controlplane.yaml` |
 
 Everything is testnet money. The Hetzner firewall (`mergit-fw`) allows only 22, 80 and 443.
 
@@ -47,10 +47,10 @@ Leave the Spacemail records (MX, SPF, DKIM) alone, and `research` as it is.
 
 ```bash
 cd ~/mergit/mergit
-docker compose -f deploy/compose.testnet.yaml -f deploy/compose.server.yaml up -d --build   # first build takes a while
+docker compose -f deploy/compose.testnet.yaml -f deploy/compose.controlplane.yaml -f deploy/compose.server.yaml up -d --build   # first build takes a while
 deploy/server/build-sites.sh                                                                # both sites, about 10 minutes
-docker compose -f deploy/compose.testnet.yaml -f deploy/compose.server.yaml ps
-docker compose -f deploy/compose.testnet.yaml -f deploy/compose.server.yaml exec caddy caddy validate --config /etc/caddy/Caddyfile
+docker compose -f deploy/compose.testnet.yaml -f deploy/compose.controlplane.yaml -f deploy/compose.server.yaml ps
+docker compose -f deploy/compose.testnet.yaml -f deploy/compose.controlplane.yaml -f deploy/compose.server.yaml exec caddy caddy validate --config /etc/caddy/Caddyfile
 ```
 
 Check the services once `gateway.` and `store.` resolve:

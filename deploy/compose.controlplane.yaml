@@ -1,0 +1,67 @@
+# The orchestration API and the agent worker (plan task O10) on top of the testnet stack.
+#   deploy/make-controlplane-env.sh [app-domain]      # once: writes deploy/secrets/api.env and worker.env
+#   docker build -t mergit-sandbox:dev control-plane/sandbox
+#   sudo install -d /var/lib/mergit/workspaces
+#   docker compose -f deploy/compose.testnet.yaml -f deploy/compose.controlplane.yaml up -d --build
+# On the server add `-f deploy/compose.server.yaml` last (Caddy then proxies api.mergit.site to `api`).
+#
+# The API and the worker get separate secret files so each holds only what it needs: neither has the gateway or
+# treasury key, and only the worker has an agent runtime key and the Docker socket.
+
+services:
+  cp_postgres:
+    image: postgres:16
+    restart: unless-stopped
+    # The control plane does not share the gateway's database: both define tables named plans, tasks and outbox.
+    environment: { POSTGRES_PASSWORD: mergit, POSTGRES_DB: mergit_cp }
+    volumes: ["cp_pgdata:/var/lib/postgresql/data"]
+    healthcheck: { test: ["CMD", "pg_isready", "-U", "postgres"], interval: 2s, retries: 30 }
+
+  # The gateway posts chain events to the control plane instead of the host.
+  gateway:
+    environment:
+      ORCHESTRATOR_URL: http://api:8000
+
+  api:
+    build: { context: .., dockerfile: control-plane/Dockerfile }
+    image: mergit-api:local
+    restart: unless-stopped
+    env_file: secrets/api.env
+    ports: ["8000:8000"]
+    depends_on:
+      cp_postgres: { condition: service_healthy }
+    volumes:
+      - ../../mergit-contracts/deployments/agents-base-sepolia.json:/agents.json:ro
+    environment:
+      DATABASE_URL: postgres://postgres:mergit@cp_postgres:5432/mergit_cp
+      GATEWAY_URL: http://gateway:8082
+      STORE_URL: http://store:8081
+      AGENTS_FILE: /agents.json
+
+  worker:
+    build: { context: .., dockerfile: control-plane/worker.Dockerfile }
+    image: mergit-worker:local
+    restart: unless-stopped
+    env_file: secrets/worker.env
+    depends_on:
+      cp_postgres: { condition: service_healthy }
+      api: { condition: service_started }
+    volumes:
+      # The worker starts sandbox containers through the host's Docker daemon. Whoever controls this process
+      # controls the host, so on a shared machine give the worker its own VM (plan task O10).
+      - /var/run/docker.sock:/var/run/docker.sock
+      # The same path on the host and in the container: the daemon resolves the bind source itself.
+      - /var/lib/mergit/workspaces:/var/lib/mergit/workspaces
+      - ../../mergit-contracts/deployments/base-sepolia.json:/deployments/base-sepolia.json:ro
+      - ../../mergit-contracts/deployments/agents-base-sepolia.json:/agents.json:ro
+    environment:
+      DATABASE_URL: postgres://postgres:mergit@cp_postgres:5432/mergit_cp
+      GATEWAY_URL: http://gateway:8082
+      STORE_URL: http://store:8081
+      DEPLOYMENT_FILE: /deployments/base-sepolia.json
+      AGENTS_FILE: /agents.json
+      CONTROL_PLANE_URL: http://api:8000
+      SANDBOX_IMAGE: mergit-sandbox:dev
+      SANDBOX_WORKSPACE_ROOT: /var/lib/mergit/workspaces
+
+volumes: { cp_pgdata: {} }
