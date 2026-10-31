@@ -57,7 +57,7 @@ def test_verify_accepts_valid_siwe_and_sets_cookie(client: TestClient) -> None:
     assert "Secure" in cookie
     assert "SameSite=lax" in cookie
     assert "Max-Age=43200" in cookie
-    # /me also returns the profile (user_id, wallets, ...); a wallet-only session has no account behind it yet.
+    # /me also returns the profile (user_id, wallets, ...); only the address is checked here.
     assert client.get("/v0/auth/me").json()["address"] == address.lower()
 
 
