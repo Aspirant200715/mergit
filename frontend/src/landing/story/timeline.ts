@@ -18,45 +18,43 @@ import { buildScenes } from "./scenes";
 gsap.registerPlugin(ScrollTrigger, MotionPathPlugin);
 
 /** Timeline length in seconds, and how many pixels of scroll one second takes. */
-export const STORY_T = 105;
-export const SCROLL_PX = 420;
+export const STORY_T = 102;
+export const SCROLL_PX = 520;
 /** The scroll story starts just before the hero leaves; the hero itself plays on load. */
 export const STORY_START = 5.6;
 
 /** Section starts (seconds) that the nav links jump to. */
 export const ANCHORS = [
-  ["how-it-works", 17.5],
-  ["agents", 28.6],
-  ["proofs", 56.6],
-  ["integrations", 84.5],
+  ["how-it-works", 18.6],
+  ["agents", 31],
+  ["proofs", 59.2],
+  ["integrations", 84.9],
 ] as const;
 
 const SECTIONS = [0, 6.8, 16, 26.8, 54.8, 82, 90, 96.8];
 
 /** Resting points: every scene and every stepper step. Scrolling settles on the next one. */
 const STOPS = [
-  5.6,
-  8.2,
-  14,
-  18,
-  23.5,
-  28.6,
-  33.9,
-  39.3,
-  44.7,
-  50.1,
-  53.8,
-  56.6,
-  61.8,
-  67,
-  72.2,
-  77.4,
-  81,
-  84.5,
-  88.8,
-  92.4,
-  96,
-  100.5,
+  5.6, // hero
+  11.9, // problem: the metered side is done
+  14.2, // problem: both sides done
+  18.6, // how it works: the stack has opened
+  23.9, // how it works: all four steps labelled
+  31, // team 1: the planner lifts
+  37.9, // team 2: work dispatched
+  42.8, // team 3: approval granted
+  48.2, // team 4: hashes merged into one proof
+  52.8, // team 5: identities issued
+  59.2, // settlement 1: funded and held
+  64.4, // settlement 2: receipt built
+  69.6, // settlement 3: receipt checked
+  74.9, // settlement 4: agent paid
+  81, // settlement 5: refunded
+  84.9, // integrations: wired
+  88.7, // integrations: the loop closed
+  92.6, // credentials: boundary in place
+  96, // credentials: key blocked
+  100.5, // closer
   STORY_T,
 ];
 
@@ -115,15 +113,15 @@ export function mountStory(root: HTMLElement, artSvg: SVGSVGElement) {
       trigger: root,
       start: "top top",
       end: "bottom bottom",
-      scrub: 1.2,
+      scrub: 2,
       animation: scrub,
       snap: {
         snapTo: STOPS.map((s) => (s - STORY_START) / span),
         directional: true,
         inertia: false,
-        delay: 0.12,
-        duration: { min: 0.7, max: 2.6 },
-        ease: "power1.inOut",
+        delay: 0.15,
+        duration: { min: 1, max: 3.4 },
+        ease: "power2.inOut",
       },
     });
     stopIntro = playHeroIntro(root, heroArt(artSvg));

@@ -130,22 +130,37 @@ test.describe("scroll story", () => {
     await expect(page.locator(".splash")).toBeHidden({ timeout: 9000 });
     await expect(page.locator("#idx-t")).toHaveText("Pay for what you got");
 
-    // The team section is dark; the nav follows it.
-    await page.evaluate(() => {
-      window.scrollTo(0, 10_300);
-    });
+    // A scripted jump does not interrupt the snap glide the way a wheel does, so let each one settle.
+    const settled = async () => {
+      let last = -1;
+      await expect
+        .poll(
+          async () => {
+            const y = await page.evaluate(() => window.scrollY);
+            const still = y === last;
+            last = y;
+            return still;
+          },
+          { timeout: 20_000, intervals: [700] },
+        )
+        .toBe(true);
+    };
+    const jump = async (y: number) => {
+      await page.evaluate((to) => {
+        window.scrollTo(0, to);
+      }, y);
+      await settled();
+    };
+
+    await jump(17_900);
     await expect(page.locator("#idx-t")).toHaveText("The team", { timeout: 15_000 });
 
-    await page.evaluate(() => {
-      window.scrollTo(0, 28_100);
-    });
+    await jump(33_500);
     await expect(page.locator("#idx-t")).toHaveText("Settlement", { timeout: 15_000 });
     await expect(page.locator("#ss .pn")).toHaveText(/0[45]/, { timeout: 15_000 });
 
     // Scrolling back to the top brings the hero back, and only the hero.
-    await page.evaluate(() => {
-      window.scrollTo(0, 0);
-    });
+    await jump(0);
     await expect(page.locator("#idx-t")).toHaveText("Pay for what you got", { timeout: 15_000 });
     await expect(page.locator("#s1")).toBeVisible();
     await expect(page.locator("#s3")).toBeHidden();

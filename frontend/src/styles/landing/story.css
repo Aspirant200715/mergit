@@ -1520,7 +1520,7 @@
  * v2 polish: one token set per theme, bolder type, readable labels.
  * ===================================================================== */
 .story {
-  --story-serif: Fraunces, Georgia, "Times New Roman", serif;
+  --story-serif: "Instrument Serif", Georgia, "Times New Roman", serif;
   --mg-ink-2: #3f4452;
   --mg-ink-3: #6d7383;
   --mg-on-ink: #ffffff;
@@ -1972,4 +1972,320 @@
 }
 #story-h1 {
   letter-spacing: -0.03em;
+}
+
+/* =====================================================================
+ * Dark theme, rebuilt: deep ink base, a vivid aurora, the editorial serif
+ * and mono labels, glassy rails and cards, glowing accents.
+ * ===================================================================== */
+:root[data-theme="dark"] .story {
+  --story-serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --mg-ink: #f4f6fa;
+  --mg-ink-2: #c6ccd9;
+  --mg-ink-3: #8f97a8;
+  --mg-card: #11141c;
+  --mg-track: rgba(255, 255, 255, 0.1);
+  --mg-hair: rgba(255, 255, 255, 0.1);
+  --face-t: #1d2536;
+  --face-l: #161d2b;
+  --face-r: #101622;
+  --edge: #cbd5e6;
+  --mono-label: "DM Mono", ui-monospace, monospace;
+}
+:root[data-theme="dark"] .story-pin,
+:root[data-theme="dark"] .story-bg-inner {
+  background:
+    radial-gradient(90% 70% at 50% -10%, #121a33 0%, rgba(18, 26, 51, 0) 70%),
+    linear-gradient(180deg, #080a12 0%, #05060b 100%);
+}
+:root[data-theme="dark"] .story .blob {
+  opacity: 0.85;
+  mix-blend-mode: screen;
+  filter: blur(46px);
+}
+:root[data-theme="dark"] .story #b1 {
+  background: radial-gradient(closest-side, rgba(60, 203, 152, 0.4), transparent);
+}
+:root[data-theme="dark"] .story #b2 {
+  background: radial-gradient(closest-side, rgba(110, 155, 255, 0.34), transparent);
+}
+:root[data-theme="dark"] .story #b3 {
+  background: radial-gradient(closest-side, rgba(167, 148, 255, 0.4), transparent);
+}
+:root[data-theme="dark"] .story #ribbons .core {
+  opacity: 0.7;
+  stroke-width: 1.8;
+}
+:root[data-theme="dark"] .story #ribbons .glow {
+  opacity: 0.38;
+}
+:root[data-theme="dark"] .story .glowbg {
+  display: none;
+}
+
+/* type: the editorial serif for headings, mono for labels */
+:root[data-theme="dark"] .story .h {
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 0.96;
+}
+:root[data-theme="dark"] #story-h1 {
+  font-size: 160px;
+  line-height: 0.92;
+  letter-spacing: -0.025em;
+}
+:root[data-theme="dark"] #story-h1 .grad,
+:root[data-theme="dark"] .story .h .mint {
+  color: #3ccb98;
+  text-shadow: 0 0 48px rgba(60, 203, 152, 0.4);
+}
+:root[data-theme="dark"] .story .h2 {
+  font-size: 100px;
+}
+:root[data-theme="dark"] .story #sp .h2 {
+  font-size: 104px;
+}
+:root[data-theme="dark"] #z-h {
+  font-size: 138px;
+}
+:root[data-theme="dark"] .story .h .g {
+  color: #8f97a8;
+}
+:root[data-theme="dark"] .story .pt h3 {
+  font-weight: 400;
+  font-size: 54px;
+  line-height: 1;
+}
+:root[data-theme="dark"] .story .panel-n,
+:root[data-theme="dark"] .story .cap b,
+:root[data-theme="dark"] .story .card-head,
+:root[data-theme="dark"] .story .card-head .lbl {
+  font-weight: 400;
+}
+:root[data-theme="dark"] .story .panel-n {
+  font-size: 56px;
+}
+:root[data-theme="dark"] .story .card-head,
+:root[data-theme="dark"] .story .card-head .lbl {
+  font-size: 34px;
+}
+:root[data-theme="dark"] .story .cap b {
+  font-size: 36px;
+}
+:root[data-theme="dark"] .story .lbl,
+:root[data-theme="dark"] .story .ri,
+:root[data-theme="dark"] .story .chip,
+:root[data-theme="dark"] .story .isolabel,
+:root[data-theme="dark"] .story .meter .lbl,
+:root[data-theme="dark"] .story .none,
+:root[data-theme="dark"] #idx,
+:root[data-theme="dark"] #idx2 {
+  font-family: var(--mono-label);
+  font-weight: 500;
+}
+:root[data-theme="dark"] .story .lbl {
+  color: #c6ccd9;
+}
+:root[data-theme="dark"] .story .lbl.dim {
+  color: #8f97a8;
+}
+:root[data-theme="dark"] .story .isolabel {
+  fill: #eef2f9;
+  font-size: 17px;
+}
+
+/* glass rails and panels, mint active pill */
+:root[data-theme="dark"] .story .rail,
+:root[data-theme="dark"] .story .panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02));
+  border-color: rgba(255, 255, 255, 0.11);
+  backdrop-filter: blur(14px);
+}
+:root[data-theme="dark"] .story .panel-card {
+  background: rgba(255, 255, 255, 0.045);
+  border-top-color: rgba(255, 255, 255, 0.11);
+}
+:root[data-theme="dark"] .story .rail-hl {
+  background: linear-gradient(90deg, #3ccb98, #8be8c6);
+  box-shadow: 0 0 36px -6px rgba(60, 203, 152, 0.7);
+}
+:root[data-theme="dark"] .story .ri {
+  color: #8f97a8;
+}
+:root[data-theme="dark"] .story .ri.on {
+  color: #04251a;
+  font-weight: 500;
+}
+:root[data-theme="dark"] .story .pt p,
+:root[data-theme="dark"] .story .rail-side p {
+  color: #c6ccd9;
+}
+
+/* cards */
+:root[data-theme="dark"] .story .pcard {
+  background: linear-gradient(180deg, #151923, #0f121a);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 40px 90px -40px rgba(0, 0, 0, 0.9);
+}
+:root[data-theme="dark"] #pb {
+  border: 1.5px solid #3ccb98;
+  box-shadow:
+    0 0 0 1px rgba(60, 203, 152, 0.25),
+    0 0 80px -20px rgba(60, 203, 152, 0.35),
+    0 40px 90px -40px rgba(0, 0, 0, 0.9);
+}
+:root[data-theme="dark"] .story .fill.m {
+  background: linear-gradient(90deg, #3ccb98, #8be8c6);
+  box-shadow: 0 0 18px rgba(60, 203, 152, 0.6);
+}
+:root[data-theme="dark"] .story .stripe.lit {
+  stroke: #3ccb98;
+}
+:root[data-theme="dark"] .story .sbtn.primary {
+  background: #f4f6fa;
+  color: #05060b;
+  box-shadow: 0 0 40px -8px rgba(60, 203, 152, 0.55);
+}
+:root[data-theme="dark"] .story .sbtn.glass {
+  color: #f4f6fa;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+:root[data-theme="dark"] #h-halo {
+  opacity: 0.55;
+}
+
+/* dark: spacing and font fixes for the narrower serif */
+:root[data-theme="dark"] #z-h {
+  font-size: 124px;
+}
+:root[data-theme="dark"] .story .h2 {
+  font-size: 92px;
+}
+:root[data-theme="dark"] .story #sp .h2 {
+  font-size: 98px;
+}
+:root[data-theme="dark"] #h-sub {
+  top: 234px !important;
+}
+:root[data-theme="dark"] #h-btns {
+  top: 294px !important;
+}
+:root[data-theme="dark"] .story .card-head .lbl {
+  font-family: var(--story-serif);
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: #f4f6fa;
+}
+:root[data-theme="dark"] .story .card-head.lbl {
+  font-family: var(--story-serif);
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: #f4f6fa;
+}
+:root[data-theme="dark"] #z-sub {
+  top: 648px;
+}
+:root[data-theme="dark"] #z-btns {
+  top: 748px;
+}
+
+/* =====================================================================
+ * One type system for both themes: the editorial serif for headings,
+ * mono for labels. Colours stay per theme; only the type is shared.
+ * ===================================================================== */
+:root[data-theme="light"] .story {
+  --story-serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --mono-label: "DM Mono", ui-monospace, monospace;
+}
+:root[data-theme="light"] .story .h {
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 0.96;
+}
+:root[data-theme="light"] #story-h1 {
+  font-size: 160px;
+  line-height: 0.92;
+  letter-spacing: -0.025em;
+}
+:root[data-theme="light"] .story .h2 {
+  font-size: 92px;
+}
+:root[data-theme="light"] .story #sp .h2 {
+  font-size: 98px;
+}
+:root[data-theme="light"] #z-h {
+  font-size: 124px;
+}
+:root[data-theme="light"] .story .pt h3 {
+  font-weight: 400;
+  font-size: 54px;
+  line-height: 1;
+}
+:root[data-theme="light"] .story .panel-n,
+:root[data-theme="light"] .story .cap b,
+:root[data-theme="light"] .story .card-head,
+:root[data-theme="light"] .story .card-head .lbl {
+  font-weight: 400;
+}
+:root[data-theme="light"] .story .panel-n {
+  font-size: 56px;
+}
+:root[data-theme="light"] .story .card-head,
+:root[data-theme="light"] .story .card-head .lbl {
+  font-size: 34px;
+}
+:root[data-theme="light"] .story .cap b {
+  font-size: 36px;
+}
+:root[data-theme="light"] .story .lbl,
+:root[data-theme="light"] .story .ri,
+:root[data-theme="light"] .story .chip,
+:root[data-theme="light"] .story .isolabel,
+:root[data-theme="light"] .story .meter .lbl,
+:root[data-theme="light"] .story .none,
+:root[data-theme="light"] #idx,
+:root[data-theme="light"] #idx2 {
+  font-family: var(--mono-label);
+  font-weight: 500;
+}
+:root[data-theme="light"] .story .isolabel {
+  font-size: 17px;
+}
+:root[data-theme="light"] .story .card-head.lbl,
+:root[data-theme="light"] .story .card-head .lbl {
+  font-family: var(--story-serif);
+  letter-spacing: -0.02em;
+  text-transform: none;
+}
+/* the thin serif needs full-strength ink on light backgrounds to stay readable */
+:root[data-theme="light"] .story .h,
+:root[data-theme="light"] .story .pt h3,
+:root[data-theme="light"] .story .panel-n,
+:root[data-theme="light"] .story .cap b {
+  color: #05060b;
+  -webkit-text-stroke: 0.5px currentColor;
+}
+:root[data-theme="light"] .story .h .g {
+  color: #4d5363;
+  -webkit-text-stroke: 0.4px currentColor;
+}
+:root[data-theme="light"] #story-h1 .grad,
+:root[data-theme="light"] .story .h .mint {
+  color: #0a8a65;
+  -webkit-text-stroke: 0.5px currentColor;
+}
+:root[data-theme="light"] #h-sub {
+  top: 234px !important;
+}
+:root[data-theme="light"] #h-btns {
+  top: 294px !important;
+}
+:root[data-theme="light"] #z-sub {
+  top: 648px;
+}
+:root[data-theme="light"] #z-btns {
+  top: 748px;
+}
+:root[data-theme="light"] .story .lbl {
+  color: #2f3441;
 }
