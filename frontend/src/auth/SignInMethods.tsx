@@ -6,6 +6,7 @@ import { fetchProviders, oauthStartUrl, requestEmailCode, submitEmailCode } from
 import { modeCopy, type AuthMode } from "./authMode";
 import { useAuth } from "./context";
 import { NoAccountError } from "./intent";
+import { clearReopenRequest, reopenRequested } from "./walletGuide";
 import { WalletPicker } from "./WalletPicker";
 import type { Session } from "./session";
 import { signInOptions, type Providers } from "./signInOptions";
@@ -33,7 +34,10 @@ export function SignInMethods({
   const [providers, setProviders] = useState<Providers | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<"wallet" | "email" | null>(null);
-  const [walletOpen, setWalletOpen] = useState(false);
+  const [walletOpen, setWalletOpen] = useState(reopenRequested);
+  useEffect(() => {
+    clearReopenRequest(); // used: a later visit starts with the list closed
+  }, []);
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [code, setCode] = useState("");

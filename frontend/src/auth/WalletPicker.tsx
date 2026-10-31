@@ -1,17 +1,28 @@
 import { useState } from "react";
 import foxUrl from "../assets/wallets/metamask-fox.svg";
-import { METAMASK_INSTALL_URL } from "../chain/metamask";
 import { useMetaMask } from "../chain/useMetaMask";
 import { Icon } from "../components/Icon";
+import { MetaMaskGuide } from "./MetaMaskGuide";
 import { sendWalletInterest, WALLET_CHOICES, type WalletChoice } from "./walletInterest";
 
 /**
- * Which wallet? MetaMask is the one that works. Installed, it connects; missing, it sends the person to MetaMask to
- * install it. Any other wallet is "soon", with a Notify me that counts how many people want it.
+ * Which wallet? MetaMask is the one that works. Installed, it connects; missing, a guide walks the person through
+ * installing and setting it up. Any other wallet is "soon", with a Notify me that counts how many people want it.
  */
 export function WalletPicker({ onMetaMask, busy }: { onMetaMask: () => void; busy: boolean }) {
   const status = useMetaMask();
-  const [view, setView] = useState<"wallets" | "soon">("wallets");
+  const [view, setView] = useState<"wallets" | "soon" | "guide">("wallets");
+
+  if (view === "guide")
+    return (
+      <MetaMaskGuide
+        busy={busy}
+        onConnect={onMetaMask}
+        onBack={() => {
+          setView("wallets");
+        }}
+      />
+    );
 
   if (view === "soon")
     return (
@@ -25,9 +36,18 @@ export function WalletPicker({ onMetaMask, busy }: { onMetaMask: () => void; bus
   return (
     <div className="col g8 wp" role="group" aria-label="Choose a wallet">
       {status === "missing" ? (
-        <a className="wp-row" href={METAMASK_INSTALL_URL} target="_blank" rel="noopener noreferrer">
-          <MetaMaskRow hint="Not found in this browser" tag={<span className="wp-tag go">Install</span>} />
-        </a>
+        <button
+          type="button"
+          className="wp-row"
+          onClick={() => {
+            setView("guide");
+          }}
+        >
+          <MetaMaskRow
+            hint="Not found in this browser. We will walk you through it."
+            tag={<span className="wp-tag go">Set up</span>}
+          />
+        </button>
       ) : (
         <button type="button" className="wp-row" disabled={busy || status === "checking"} onClick={onMetaMask}>
           <MetaMaskRow
@@ -58,9 +78,6 @@ export function WalletPicker({ onMetaMask, busy }: { onMetaMask: () => void; bus
         </span>
         <span className="wp-tag">Soon</span>
       </button>
-      {status === "missing" && (
-        <p className="small c3">After installing MetaMask, reload this page, then choose it here.</p>
-      )}
     </div>
   );
 }

@@ -382,3 +382,43 @@ button.avatarme {
 .wp-inline {
   margin-top: 8px;
 }
+
+/* MetaMask setup guide */
+.wg-steps {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.wg-step {
+  display: flex;
+  gap: 12px;
+}
+.wg-num {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--sunken);
+  color: var(--ink2);
+}
+.wg-action {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+}
+.wg-found {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--mint);
+  border-radius: 12px;
+  color: var(--mint);
+}

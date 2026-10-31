@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Icon } from "../components/Icon";
 import { MergitSymbol } from "../components/MergitLogo";
 import { startTrial } from "./accountApi";
 import { fundingChoiceNeeded } from "./account";
 import { useAuth } from "./context";
 import { useConnectWallet } from "./useConnectWallet";
+import { clearReopenRequest, reopenRequested } from "./walletGuide";
 import { WalletPicker } from "./WalletPicker";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -20,7 +21,10 @@ export function FundingChoice() {
   const wallet = useConnectWallet();
   const [dismissed, setDismissed] = useState(false);
   const [starting, setStarting] = useState(false);
-  const [walletOpen, setWalletOpen] = useState(false);
+  const [walletOpen, setWalletOpen] = useState(reopenRequested);
+  useEffect(() => {
+    clearReopenRequest(); // used: a later visit starts with the list closed
+  }, []);
   const [trialError, setTrialError] = useState<string | null>(null);
   const busy = starting || wallet.busy;
   const error = trialError ?? wallet.error;
