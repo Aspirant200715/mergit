@@ -9,7 +9,6 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { beatsIntro } from "./beatsIntro";
 import { beatsMid } from "./beatsMid";
 import { beatsTail } from "./beatsTail";
-import { storyCopy } from "./copy";
 import { heroArt } from "./heroArt";
 import { playHeroIntro } from "./heroIntro";
 import { helpers } from "./motion";
@@ -30,8 +29,6 @@ export const ANCHORS = [
   ["proofs", 59.2],
   ["integrations", 84.9],
 ] as const;
-
-const SECTIONS = [0, 6.8, 16, 26.8, 54.8, 82, 90, 96.8];
 
 /** Resting points: every scene and every stepper step. Scrolling settles on the next one. */
 const STOPS = [
@@ -79,26 +76,13 @@ export function mountStory(root: HTMLElement, artSvg: SVGSVGElement) {
     const S = buildScenes(root);
     const tl = gsap.timeline({ defaults: { ease: "power3.out", lazy: false }, paused: true });
     const h = helpers(tl, root);
-    tl.fromTo(h.q("#prog i"), { scaleX: 0 }, { scaleX: 1, ease: "none", duration: STORY_T, immediateRender: false }, 0);
     beatsIntro(h, tl, S, STORY_T);
     const syncMid = beatsMid(h, tl, S);
     beatsTail(h, tl, S);
     tl.set({}, {}, STORY_T);
 
-    const idxN = h.q("#idx-n");
-    const idxT = h.q("#idx-t");
-    let last = -1;
     tl.eventCallback("onUpdate", () => {
       const t = tl.time();
-      let i = 0;
-      SECTIONS.forEach((s, k) => {
-        if (t >= s) i = k;
-      });
-      if (i !== last) {
-        last = i;
-        idxN.textContent = `0${String(i + 1)}`;
-        idxT.textContent = storyCopy.index[i] ?? "";
-      }
       h.syncScenes(t);
       syncMid(t);
     });

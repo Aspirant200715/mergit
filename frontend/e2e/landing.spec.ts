@@ -128,7 +128,7 @@ test.describe("scroll story", () => {
     await expect(page.locator(".intro")).toHaveCount(0);
     // The logo splash plays first, then clears.
     await expect(page.locator(".splash")).toBeHidden({ timeout: 9000 });
-    await expect(page.locator("#idx-t")).toHaveText("Pay for what you got");
+    await expect(page.locator("#s1")).toBeVisible();
 
     // A scripted jump does not interrupt the snap glide the way a wheel does, so let each one settle.
     const settled = async () => {
@@ -153,17 +153,19 @@ test.describe("scroll story", () => {
     };
 
     await jump(17_900);
-    await expect(page.locator("#idx-t")).toHaveText("The team", { timeout: 15_000 });
+    await expect(page.locator("#s3")).toBeVisible({ timeout: 15_000 });
 
     await jump(33_500);
-    await expect(page.locator("#idx-t")).toHaveText("Settlement", { timeout: 15_000 });
+    await expect(page.locator("#ss")).toBeVisible({ timeout: 15_000 });
     await expect(page.locator("#ss .pn")).toHaveText(/0[45]/, { timeout: 15_000 });
 
     // Scrolling back to the top brings the hero back, and only the hero.
     await jump(0);
-    await expect(page.locator("#idx-t")).toHaveText("Pay for what you got", { timeout: 15_000 });
-    await expect(page.locator("#s1")).toBeVisible();
+    await expect(page.locator("#s1")).toBeVisible({ timeout: 15_000 });
     await expect(page.locator("#s3")).toBeHidden();
+
+    // The pinned stage carries no progress bar or section label of its own.
+    for (const id of ["#prog", "#idx", "#idx2"]) await expect(page.locator(id)).toHaveCount(0);
 
     expect(errors).toEqual([]);
   });
@@ -171,7 +173,7 @@ test.describe("scroll story", () => {
   test("nav links land on their story sections", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Agents" }).click();
-    await expect(page.locator("#idx-t")).toHaveText("The team", { timeout: 15_000 });
+    await expect(page.locator("#s3")).toBeVisible({ timeout: 15_000 });
   });
 
   test("reduced motion gets the classic page even on a wide screen", async ({ browser }) => {

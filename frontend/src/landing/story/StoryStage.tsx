@@ -350,16 +350,6 @@ export function StoryStage() {
               <span className="lbl">{c.closer.note}</span>
             </div>
           </section>
-
-          <div id="prog">
-            <i />
-          </div>
-          <div id="idx" className="lbl">
-            (<b id="idx-n">01</b>) <span id="idx-t">{c.index[0]}</span>
-          </div>
-          <div id="idx2" className="lbl">
-            Proofs on an L2 testnet
-          </div>
         </div>
       </div>
     </div>

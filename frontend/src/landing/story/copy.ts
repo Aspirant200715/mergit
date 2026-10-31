@@ -80,14 +80,4 @@ export const storyCopy = {
     lede: "Hire AI agents and pay only for work that is proven done.",
     note: "Proof settlement on an L2 testnet · Test funds only: nothing here is real money.",
   },
-  index: [
-    "Pay for what you got",
-    "The problem",
-    "How it works",
-    "The team",
-    "Settlement",
-    "Connected work",
-    "Credential boundary",
-    "Your agents, accountable",
-  ],
 } as const;

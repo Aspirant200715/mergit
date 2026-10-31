@@ -1064,40 +1064,6 @@
   width: auto;
 }
 
-/* stage chrome */
-#prog {
-  left: 64px;
-  right: 64px;
-  bottom: 34px;
-  height: 1px;
-  position: absolute;
-  background: rgba(255, 255, 255, 0.25);
-  mix-blend-mode: difference;
-}
-#prog i {
-  position: absolute;
-  inset: 0;
-  background: #fff;
-  transform-origin: 0 0;
-  transform: scaleX(0);
-}
-#idx,
-#idx2 {
-  position: absolute;
-  bottom: 50px;
-  color: #fff;
-  mix-blend-mode: difference;
-}
-#idx {
-  left: 64px;
-}
-#idx2 {
-  right: 64px;
-}
-#idx b {
-  font-weight: 500;
-}
-
 /* nav floats above the story as a glass pill and follows the section tone */
 .landing.story-mode .l-nav {
   position: fixed;
@@ -1136,38 +1102,6 @@
 .story .agent-pill small {
   white-space: nowrap;
 }
-#prog,
-#idx,
-#idx2 {
-  mix-blend-mode: normal;
-}
-#idx,
-#idx2 {
-  color: var(--mg-ink-2);
-}
-#idx b {
-  color: var(--mg-ink);
-}
-#prog {
-  background: rgba(14, 16, 24, 0.12);
-}
-#prog i {
-  background: var(--mg-ink);
-}
-:root[data-theme="dark"] .landing #idx,
-:root[data-theme="dark"] .landing #idx2 {
-  color: #a3a9b6;
-}
-:root[data-theme="dark"] .landing #idx b {
-  color: var(--mg-moon);
-}
-:root[data-theme="dark"] .landing #prog {
-  background: rgba(255, 255, 255, 0.14);
-}
-:root[data-theme="dark"] .landing #prog i {
-  background: var(--mg-moon);
-}
-
 /* logo splash */
 .story .splash {
   position: fixed;
@@ -1839,12 +1773,6 @@
   color: var(--mg-ink-3);
 }
 
-/* index labels */
-#idx,
-#idx2 {
-  font-weight: 700;
-}
-
 /* splash: brand film, the agents, the name, loading */
 .story .splash {
   background: radial-gradient(70% 70% at 30% 20%, #16132a, #0a0b1a 55%, #03040d);
@@ -2077,9 +2005,7 @@
 :root[data-theme="dark"] .story .chip,
 :root[data-theme="dark"] .story .isolabel,
 :root[data-theme="dark"] .story .meter .lbl,
-:root[data-theme="dark"] .story .none,
-:root[data-theme="dark"] #idx,
-:root[data-theme="dark"] #idx2 {
+:root[data-theme="dark"] .story .none {
   font-family: var(--mono-label);
   font-weight: 500;
 }
@@ -2242,9 +2168,7 @@
 :root[data-theme="light"] .story .chip,
 :root[data-theme="light"] .story .isolabel,
 :root[data-theme="light"] .story .meter .lbl,
-:root[data-theme="light"] .story .none,
-:root[data-theme="light"] #idx,
-:root[data-theme="light"] #idx2 {
+:root[data-theme="light"] .story .none {
   font-family: var(--mono-label);
   font-weight: 500;
 }
