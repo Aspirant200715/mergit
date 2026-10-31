@@ -140,7 +140,8 @@ test("Other wallets: pick the ones you want, press Notify me, and the server is 
   await page.getByRole("button", { name: "Trust Wallet" }).click(); // and changes their mind
   await page.getByRole("button", { name: "Notify me" }).click();
 
-  await expect(page.getByRole("status")).toContainText("We will tell you when it is ready");
+  // Not getByRole("status") alone: the toast container is a second, empty status region on every page.
+  await expect(page.getByRole("status").filter({ hasText: "We will tell you when it is ready" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Notify me" })).toHaveCount(0);
   const sent = calls.filter((c) => c.path === "/v0/wallet-interest");
   expect(sent).toHaveLength(1);

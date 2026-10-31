@@ -142,7 +142,10 @@ test("a new account chooses between the free trial and a wallet, and the trial h
 
   await page.goto("/app/wallet");
   await expect(page.getByText("No wallet connected", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Connect a wallet" })).toBeVisible();
+  // The wallet page offers the wallet list, with MetaMask first, instead of a bare button.
+  await expect(
+    page.getByRole("group", { name: "Choose a wallet" }).getByRole("button", { name: /MetaMask/ }),
+  ).toBeVisible();
   await expect(page.getByTestId("credits-remaining")).toHaveText("5.00");
   await expect(page.getByTestId("usdc-balance")).toHaveCount(0);
 });
