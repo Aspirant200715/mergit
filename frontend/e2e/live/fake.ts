@@ -46,10 +46,19 @@ const SELECTOR = {
   phiHashOf: toFunctionSelector("phiHashOf(bytes32)"),
 };
 
-/** Installs the fake wallet before any page script runs. `chainId` is what the wallet starts on. */
-export async function installWallet(context: BrowserContext, opts: { chainId?: number } = {}) {
+/**
+ * Installs the fake MetaMask before any page script runs, announced the way real wallets are (EIP-6963) and also as
+ * `window.ethereum`. `chainId` is what it starts on. `absent` installs no wallet at all. `decoyDefault` makes another
+ * wallet own `window.ethereum` (as Coinbase Wallet or Brave Wallet do) while MetaMask still announces itself: the app
+ * must use MetaMask, so the decoy refuses every request.
+ */
+export async function installWallet(
+  context: BrowserContext,
+  opts: { chainId?: number; absent?: boolean; decoyDefault?: boolean } = {},
+) {
+  if (opts.absent) return;
   await context.addInitScript(
-    ({ me, chainId }) => {
+    ({ me, chainId, decoyDefault }) => {
       const listeners: Record<string, Array<(...a: unknown[]) => void>> = {};
       const state = {
         accounts: [me] as string[],
@@ -70,7 +79,8 @@ export async function installWallet(context: BrowserContext, opts: { chainId?: n
           emit("accountsChanged", state.accounts);
         },
       };
-      w.ethereum = {
+      const metamask = {
+        isMetaMask: true,
         on: (e: string, l: (...a: unknown[]) => void) => (listeners[e] ??= []).push(l),
         removeListener: (e: string, l: (...a: unknown[]) => void) => {
           listeners[e] = (listeners[e] ?? []).filter((x) => x !== l);
@@ -107,8 +117,25 @@ export async function installWallet(context: BrowserContext, opts: { chainId?: n
           }
         },
       };
+      w.ethereum = decoyDefault
+        ? {
+            isMetaMask: true, // some wallets claim this
+            isCoinbaseWallet: true,
+            on: () => undefined,
+            removeListener: () => undefined,
+            request: () => Promise.reject(new Error("the wallet that owns window.ethereum must not be used")),
+          }
+        : metamask;
+      const info = { uuid: "fake-metamask", name: "MetaMask", icon: "data:,", rdns: "io.metamask" };
+      const announce = () => {
+        window.dispatchEvent(
+          new CustomEvent("eip6963:announceProvider", { detail: Object.freeze({ info, provider: metamask }) }),
+        );
+      };
+      window.addEventListener("eip6963:requestProvider", announce);
+      announce();
     },
-    { me: ME, chainId: opts.chainId ?? 84532 },
+    { me: ME, chainId: opts.chainId ?? 84532, decoyDefault: opts.decoyDefault ?? false },
   );
 }
 
@@ -249,6 +276,7 @@ export async function mockBackend(page: Page, b: Backend = {}) {
       const address = b.meAfterEmail?.["address"];
       return json(route, { address: typeof address === "string" ? address : ME });
     }
+    if (path === "/v0/wallet-interest") return route.fulfill({ status: 204, headers: CORS(route) });
     if (path === "/v0/account/trial") {
       const started_at = "2026-10-30T10:00:00+00:00";
       b.me = { ...b.me, trial: { started_at } };

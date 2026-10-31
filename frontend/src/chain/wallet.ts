@@ -15,7 +15,7 @@ export function apiBase(url: string = LIVE.apiUrl): string {
 async function signWithWallet(onMessage?: (message: string) => void) {
   const provider = injected();
   if (!provider)
-    throw new Error("No browser wallet found. Install one such as MetaMask or Coinbase Wallet, then try again.");
+    throw new Error("MetaMask was not found in this browser. Install it, reload this page, then try again.");
   const [first] = await provider.request({ method: "eth_requestAccounts" });
   if (!first) throw new Error("The wallet did not share an account.");
   const address = getAddress(first);

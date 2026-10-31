@@ -5,6 +5,7 @@ import { startTrial } from "./accountApi";
 import { fundingChoiceNeeded } from "./account";
 import { useAuth } from "./context";
 import { useConnectWallet } from "./useConnectWallet";
+import { WalletPicker } from "./WalletPicker";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -19,6 +20,7 @@ export function FundingChoice() {
   const wallet = useConnectWallet();
   const [dismissed, setDismissed] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [walletOpen, setWalletOpen] = useState(false);
   const [trialError, setTrialError] = useState<string | null>(null);
   const busy = starting || wallet.busy;
   const error = trialError ?? wallet.error;
@@ -112,10 +114,19 @@ export function FundingChoice() {
                 You sign one message; it costs nothing
               </li>
             </ul>
-            <button type="button" className="btn secondary block" disabled={busy} onClick={wallet.connect}>
+            <button
+              type="button"
+              className="btn secondary block"
+              aria-expanded={walletOpen}
+              disabled={starting}
+              onClick={() => {
+                setWalletOpen((open) => !open);
+              }}
+            >
               <Icon name="wallet" size={16} />
-              {wallet.busy ? "Waiting for your wallet…" : "Connect a wallet"}
+              Connect a wallet
             </button>
+            {walletOpen && <WalletPicker busy={wallet.busy} onMetaMask={wallet.connect} />}
           </section>
         </div>
         <button

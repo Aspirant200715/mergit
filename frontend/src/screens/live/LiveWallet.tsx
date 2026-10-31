@@ -6,6 +6,7 @@ import { PageHeader } from "../../components/PageHeader";
 import { isTrialSession } from "../../auth/account";
 import { useAuth } from "../../auth/context";
 import { useConnectWallet } from "../../auth/useConnectWallet";
+import { WalletPicker } from "../../auth/WalletPicker";
 import { injected, switchChain, walletChainId } from "../../chain/client";
 import { formatUsdc } from "../../chain/funding";
 import { useBalances } from "../../chain/useBalances";
@@ -87,11 +88,7 @@ export function LiveWallet() {
                 {connectWallet.error}
               </p>
             )}
-            <div>
-              <Button variant="primary" onClick={connectWallet.connect}>
-                {connectWallet.busy ? "Waiting for your wallet…" : "Connect a wallet"}
-              </Button>
-            </div>
+            <WalletPicker busy={connectWallet.busy} onMetaMask={connectWallet.connect} />
           </div>
         ) : (
           <div className="wl-card">

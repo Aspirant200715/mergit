@@ -13,6 +13,7 @@ import {
   type WalletClient,
 } from "viem";
 import { LIVE } from "../config/live";
+import { metaMask, startWalletDiscovery } from "./metamask";
 
 export const chain: Chain = defineChain({
   id: LIVE.chainId,
@@ -24,9 +25,13 @@ export const chain: Chain = defineChain({
 /** Reads go to the configured RPC, never through the wallet. */
 export const publicClient: PublicClient<Transport, Chain> = createPublicClient({ chain, transport: http(LIVE.rpcUrl) });
 
-/** The browser wallet (window.ethereum), if there is one. */
+/**
+ * The wallet Mergit talks to: MetaMask's own provider, found by name (EIP-6963), not whichever extension happens to
+ * own `window.ethereum`. Null when MetaMask is not installed. See metamask.ts.
+ */
 export function injected(): EIP1193Provider | null {
-  return (window as unknown as { ethereum?: EIP1193Provider }).ethereum ?? null;
+  startWalletDiscovery();
+  return metaMask();
 }
 
 export function walletClient(account: Address): WalletClient<Transport, Chain, Account> {

@@ -1,12 +1,12 @@
 import { useEffect, useState, type SubmitEvent } from "react";
 import { Icon } from "../components/Icon";
 import { Segmented } from "../components/Segmented";
-import { MergitLoader } from "../components/MergitLoader";
 import { connectAndSignIn } from "../chain/wallet";
 import { fetchProviders, oauthStartUrl, requestEmailCode, submitEmailCode } from "./accountApi";
 import { modeCopy, type AuthMode } from "./authMode";
 import { useAuth } from "./context";
 import { NoAccountError } from "./intent";
+import { WalletPicker } from "./WalletPicker";
 import type { Session } from "./session";
 import { signInOptions, type Providers } from "./signInOptions";
 
@@ -33,6 +33,7 @@ export function SignInMethods({
   const [providers, setProviders] = useState<Providers | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<"wallet" | "email" | null>(null);
+  const [walletOpen, setWalletOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [code, setCode] = useState("");
@@ -124,16 +125,18 @@ export function SignInMethods({
           {copy.provider("Google")}
         </a>
       )}
-      <button type="button" className="si-provider" disabled={busy === "wallet"} onClick={wallet}>
+      <button
+        type="button"
+        className="si-provider"
+        aria-expanded={walletOpen}
+        onClick={() => {
+          setWalletOpen((open) => !open);
+        }}
+      >
         <Icon name="wallet" size={18} />
         {copy.wallet}
       </button>
-      {busy === "wallet" && (
-        <span className="row g8 small c2" role="status">
-          <MergitLoader size={22} decorative />
-          Waiting for your wallet…
-        </span>
-      )}
+      {walletOpen && <WalletPicker busy={busy === "wallet"} onMetaMask={wallet} />}
       {options.email && (
         <>
           <div className="row g12 small c3" aria-hidden="true">

@@ -67,9 +67,11 @@ test("signing in with a wallet nobody registered says so and moves to Create acc
   await open(page, { me: null, providers: everything, walletRegistered: false });
   await page.goto("/signin");
   await page.getByRole("button", { name: "Sign in with wallet" }).click();
+  await page.getByRole("button", { name: /MetaMask/ }).click();
   await expect(page.getByRole("alert")).toContainText("Create an account");
   await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
-  await page.getByRole("button", { name: "Sign up with wallet" }).click();
+  // The wallet list stays open on the Create account tab: choosing MetaMask again now registers it.
+  await page.getByRole("button", { name: /MetaMask/ }).click();
   await expect(page).toHaveURL(/\/app$/);
 });
 
@@ -150,6 +152,7 @@ test("connecting a wallet makes the session act as that wallet", async ({ page }
   await page.goto("/app");
   const choice = page.getByRole("dialog", { name: "Choose your plan" });
   await choice.getByRole("button", { name: /Connect a wallet/ }).click();
+  await choice.getByRole("button", { name: /MetaMask/ }).click();
   await expect(choice).toBeHidden();
   const link = calls.find((c) => c.path === "/v0/auth/wallet/link");
   expect((link?.body as { message: string }).message).toContain("Chain ID: 84532");

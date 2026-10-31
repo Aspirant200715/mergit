@@ -301,3 +301,84 @@ button.avatarme {
     padding: 14px;
   }
 }
+
+/* Wallet picker */
+.wp-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  text-align: left;
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+.wp-row:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--soft);
+}
+.wp-row:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+.wp-row.soon {
+  border-style: dashed;
+}
+.wp-ico {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+.wp-ico.plus {
+  border-radius: 8px;
+  background: var(--sunken);
+  color: var(--ink2);
+}
+.wp-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  color: var(--ink3);
+  white-space: nowrap;
+}
+.wp-tag.ok {
+  color: var(--mint);
+  border-color: var(--mint);
+}
+.wp-tag.go {
+  color: #fff;
+  background: #f6851b;
+  border-color: #f6851b;
+}
+.wp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.wp-chip {
+  font-size: 13px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+}
+.wp-chip.on {
+  border-color: var(--azure, #5b8cff);
+  color: var(--azure, #5b8cff);
+  background: var(--soft);
+}
+.wp-chip:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+.wp-inline {
+  margin-top: 8px;
+}
