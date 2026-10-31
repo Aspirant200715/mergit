@@ -3,6 +3,9 @@ import { expect, test, type Page } from "@playwright/test";
 const session = (page: Page) => page.evaluate(() => localStorage.getItem("mergit-session"));
 
 test.describe("landing page", () => {
+  // Below 1024px wide (and with reduced motion) the classic page renders instead of the scroll story.
+  test.use({ viewport: { width: 1000, height: 800 } });
+
   test("the intro hands over to the hero, and a click skips it", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".intro")).toBeVisible();
@@ -113,6 +116,57 @@ test.describe("landing page", () => {
       expect(spills).toEqual([]);
     });
   }
+});
+
+test.describe("scroll story", () => {
+  test("a wide screen gets the story, and scrolling walks through its sections", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await page.goto("/");
+    await expect(page.locator(".landing.story-mode")).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Pay for what you got.");
+    await expect(page.locator(".intro")).toHaveCount(0);
+    // The logo splash plays first, then clears.
+    await expect(page.locator(".splash")).toBeHidden({ timeout: 9000 });
+    await expect(page.locator("#idx-t")).toHaveText("Pay for what you got");
+
+    // The team section is dark; the nav follows it.
+    await page.evaluate(() => {
+      window.scrollTo(0, 10_300);
+    });
+    await expect(page.locator("#idx-t")).toHaveText("The team", { timeout: 15_000 });
+
+    await page.evaluate(() => {
+      window.scrollTo(0, 28_100);
+    });
+    await expect(page.locator("#idx-t")).toHaveText("Settlement", { timeout: 15_000 });
+    await expect(page.locator("#ss .pn")).toHaveText(/0[45]/, { timeout: 15_000 });
+
+    // Scrolling back to the top brings the hero back, and only the hero.
+    await page.evaluate(() => {
+      window.scrollTo(0, 0);
+    });
+    await expect(page.locator("#idx-t")).toHaveText("Pay for what you got", { timeout: 15_000 });
+    await expect(page.locator("#s1")).toBeVisible();
+    await expect(page.locator("#s3")).toBeHidden();
+
+    expect(errors).toEqual([]);
+  });
+
+  test("nav links land on their story sections", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Agents" }).click();
+    await expect(page.locator("#idx-t")).toHaveText("The team", { timeout: 15_000 });
+  });
+
+  test("reduced motion gets the classic page even on a wide screen", async ({ browser }) => {
+    const ctx = await browser.newContext({ reducedMotion: "reduce", viewport: { width: 1440, height: 900 } });
+    const page = await ctx.newPage();
+    await page.goto("/");
+    await expect(page.locator(".landing.story-mode")).toHaveCount(0);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("AI agents that do real work.");
+    await ctx.close();
+  });
 });
 
 test.describe("sign in", () => {

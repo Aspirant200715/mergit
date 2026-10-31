@@ -10,7 +10,15 @@ export function LandingNav() {
   const { session, openConnect } = useAuth();
   return (
     <header className="l-nav l-container">
-      <Link to={paths.landing} className="l-brand" aria-label="Mergit home">
+      <Link
+        to={paths.landing}
+        className="l-brand"
+        aria-label="Mergit home"
+        onClick={() => {
+          // Already on the landing page: go back to the very top, wherever the scroll story is.
+          window.scrollTo({ top: 0, behavior: "instant" });
+        }}
+      >
         <MergitLogo title="" className="l-logo" />
       </Link>
       <nav className="l-nav-links" aria-label="Sections">
