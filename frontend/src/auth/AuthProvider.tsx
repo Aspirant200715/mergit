@@ -114,13 +114,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (address === null && asked.current) return;
     asked.current = true;
     let cancelled = false;
+    let answered = false;
     void fetchAccount().then((check) => {
       if (cancelled) return;
+      answered = true;
       adopt(check);
       setReady(true);
     });
     return () => {
       cancelled = true;
+      // Cancelled before the server answered (React StrictMode runs effects twice in development): ask again,
+      // or `ready` would never become true and the Connect window would never open.
+      if (!answered) asked.current = false;
     };
   }, [address, adopt]);
 

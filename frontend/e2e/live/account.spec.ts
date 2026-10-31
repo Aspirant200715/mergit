@@ -153,7 +153,9 @@ test("connecting a wallet makes the session act as that wallet", async ({ page }
   await expect(choice).toBeHidden();
   const link = calls.find((c) => c.path === "/v0/auth/wallet/link");
   expect((link?.body as { message: string }).message).toContain("Chain ID: 84532");
-  await expect(page.getByRole("link", { name: "Wallet and identity" })).toContainText("0x6E2d…9A0b");
+  await expect(page.getByRole("link", { name: "Wallet and identity" })).toContainText(
+    `${ME.slice(0, 6)}…${ME.slice(-4)}`,
+  );
   await expect(page.getByRole("link", { name: "Wallet and identity" })).not.toContainText("Free trial");
   const stored = await page.evaluate(
     () => JSON.parse(localStorage.getItem("mergit-session") ?? "{}") as { address: string },
@@ -191,6 +193,7 @@ test("an emailed code signs in", async ({ page }) => {
   expect(calls.find((c) => c.path === "/v0/auth/email/verify")?.body).toEqual({
     email: "ada@example.com",
     code: "123456",
+    intent: "login",
   });
   await expect(page.getByRole("button", { name: /^Account, signed in as/ })).toContainText("AD");
   await expect(page.getByRole("link", { name: "Wallet and identity" })).toContainText("Free trial");
