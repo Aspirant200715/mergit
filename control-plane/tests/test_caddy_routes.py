@@ -9,7 +9,7 @@ import re
 from fnmatch import fnmatch
 from pathlib import Path
 
-from mergit_cp import auth, oauth, otp, routes_plans, routes_runs
+from mergit_cp import auth, oauth, otp, routes_plans, routes_runs, wallet_interest
 
 CADDYFILE = Path(__file__).resolve().parents[2] / "deploy" / "Caddyfile"
 
@@ -30,6 +30,7 @@ def _browser_paths() -> list[str]:
         auth.account_router,
         oauth.router,
         otp.router,
+        wallet_interest.router,
         routes_plans.router,
         routes_runs.router,
         routes_runs.agents_router,

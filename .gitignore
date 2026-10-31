@@ -13,3 +13,6 @@ deploy_key*
 *.pem
 id_ed25519*
 id_rsa*
+
+# visual brainstorming scratch
+.superpowers/

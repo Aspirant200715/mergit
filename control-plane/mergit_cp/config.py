@@ -71,6 +71,8 @@ class Settings(BaseSettings):
     smtp_password: SecretStr | None = None
     smtp_from: str | None = None
     """Emailed sign-in codes are offered only when smtp_host and smtp_from are set."""
+    wallet_interest_per_minute: int = Field(default=60, ge=1)
+    """New "Notify me" rows accepted per minute, across everyone: a flood is slowed, not stored."""
     otp_ttl_s: int = Field(default=600, gt=0)
     otp_max_attempts: int = Field(default=5, ge=1)
     otp_sends_per_hour: int = Field(default=5, ge=1)

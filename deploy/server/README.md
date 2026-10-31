@@ -125,3 +125,18 @@ Run it nightly from cron (`crontab -e`): `15 3 * * * cd ~/mergit/mergit && deplo
 Copy the directory off the server as well (`scp -r viscous@91.98.73.73:backups .`), because a dump on the same disk is
 lost with the disk. To restore into a fresh database: `gunzip -c mergit_cp-<time>.sql.gz | docker compose exec -T cp_postgres psql -U postgres mergit_cp`.
 Dumps contain email addresses and session-token hashes: keep them private.
+
+
+## Wallet demand ("Notify me")
+
+Only MetaMask works today. The wallet picker lists "Other wallets" as coming soon, with a **Notify me** button that
+records which wallet someone wants (`POST /v0/wallet-interest`). Read the totals on the server:
+
+```bash
+deploy/server/wallet-interest.sh            # people per wallet, signed in versus anonymous
+deploy/server/wallet-interest.sh --emails   # also the signed-in people to tell at launch (private)
+```
+
+It is a demand signal, not a verified count. A signed-in person is one row per wallet by account; a signed-out
+visitor is one row per wallet per token their browser keeps, so one person on two browsers counts twice. New rows are
+limited to 60 a minute across everyone (`WALLET_INTEREST_PER_MINUTE`).
