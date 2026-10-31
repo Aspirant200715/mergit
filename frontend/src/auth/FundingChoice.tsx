@@ -9,9 +9,10 @@ import { useConnectWallet } from "./useConnectWallet";
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /**
- * Shown over the dashboard to an account that has neither started the free trial nor connected a wallet: how will
- * its work be paid for? A trial runs on the treasury's free credits (audited on every task, no reputation earned).
- * A wallet pays from its own USDC and is where proofs settle. "Look around first" leaves the choice for later.
+ * Shown over the dashboard to an account that has neither started the free trial nor connected a wallet: a plan
+ * choice. Free runs on the treasury's free credits (audited on every task, no reputation earned) and needs no wallet.
+ * Pay as you go connects a wallet, which funds each plan from its own USDC and is where proofs settle.
+ * "Look around first" leaves the choice for later.
  */
 export function FundingChoice() {
   const { account, refreshAccount } = useAuth();
@@ -39,7 +40,7 @@ export function FundingChoice() {
   return (
     <div className="connect-backdrop">
       <div
-        className="connect-dialog"
+        className="connect-dialog plan-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="choice-title"
@@ -48,43 +49,78 @@ export function FundingChoice() {
         <div className="row g12">
           <MergitSymbol size={34} />
           <h2 id="choice-title" className="connect-title">
-            How do you want to run work?
+            Choose your plan
           </h2>
         </div>
         <p id="choice-desc" className="c2 connect-desc">
           {account?.name ? `Welcome, ${account.name}. ` : "Welcome. "}
-          Start with the free trial, or connect a wallet to pay with your own test USDC.
+          Start free with test credits, or connect a wallet and pay as you go. You can switch later.
         </p>
         {error && (
           <p className="small cr" role="alert">
             {error}
           </p>
         )}
-        <ul className="connect-options">
-          <li>
-            <button type="button" className="connect-option" disabled={busy} onClick={trial}>
-              <Icon name="check" size={16} />
-              <span className="col grow">
-                <span className="strong">{starting ? "Starting…" : "Start the free trial"}</span>
-                <span className="small c3">Free test credits. Every task is audited; no reputation is earned.</span>
-              </span>
+        <div className="plan-grid">
+          <section className="plan-card" aria-labelledby="plan-free">
+            <span className="plan-tag">No wallet needed</span>
+            <h3 id="plan-free" className="plan-name">
+              Free
+            </h3>
+            <p className="plan-price">
+              <span className="plan-amount">$0</span>
+              <span className="small c3">test credits</span>
+            </p>
+            <ul className="plan-list small c2">
+              <li>
+                <Icon name="check" size={14} stroke={2.4} />
+                Runs on free test credits
+              </li>
+              <li>
+                <Icon name="check" size={14} stroke={2.4} />
+                Every task is audited
+              </li>
+              <li>
+                <Icon name="check" size={14} stroke={2.4} />
+                No reputation is earned
+              </li>
+            </ul>
+            <button type="button" className="btn primary block" disabled={busy} onClick={trial}>
+              {starting ? "Starting…" : "Start free"}
             </button>
-          </li>
-          <li>
-            <button type="button" className="connect-option" disabled={busy} onClick={wallet.connect}>
+          </section>
+          <section className="plan-card" aria-labelledby="plan-payg">
+            <span className="plan-tag">Wallet</span>
+            <h3 id="plan-payg" className="plan-name">
+              Pay as you go
+            </h3>
+            <p className="plan-price">
+              <span className="plan-amount">Per task</span>
+              <span className="small c3">your own test USDC</span>
+            </p>
+            <ul className="plan-list small c2">
+              <li>
+                <Icon name="check" size={14} stroke={2.4} />
+                Each plan is funded from your wallet
+              </li>
+              <li>
+                <Icon name="check" size={14} stroke={2.4} />
+                Proofs settle to your address
+              </li>
+              <li>
+                <Icon name="check" size={14} stroke={2.4} />
+                You sign one message; it costs nothing
+              </li>
+            </ul>
+            <button type="button" className="btn secondary block" disabled={busy} onClick={wallet.connect}>
               <Icon name="wallet" size={16} />
-              <span className="col grow">
-                <span className="strong">{wallet.busy ? "Waiting for your wallet…" : "Connect a wallet"}</span>
-                <span className="small c3">
-                  MetaMask or another browser wallet. You sign one message; it costs nothing.
-                </span>
-              </span>
+              {wallet.busy ? "Waiting for your wallet…" : "Connect a wallet"}
             </button>
-          </li>
-        </ul>
+          </section>
+        </div>
         <button
           type="button"
-          className="link small"
+          className="link small plan-skip"
           onClick={() => {
             setDismissed(true);
           }}

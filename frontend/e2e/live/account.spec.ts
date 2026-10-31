@@ -129,9 +129,9 @@ test("a new account chooses between the free trial and a wallet, and the trial h
   };
   const calls = await open(page, b);
   await page.goto("/app");
-  const choice = page.getByRole("dialog", { name: "How do you want to run work?" });
+  const choice = page.getByRole("dialog", { name: "Choose your plan" });
   await expect(choice).toBeVisible();
-  await choice.getByRole("button", { name: /Start the free trial/ }).click();
+  await choice.getByRole("button", { name: "Start free" }).click();
   await expect(choice).toBeHidden();
   expect(calls.some((c) => c.path === "/v0/account/trial")).toBe(true);
 
@@ -148,7 +148,7 @@ test("a new account chooses between the free trial and a wallet, and the trial h
 test("connecting a wallet makes the session act as that wallet", async ({ page }) => {
   const calls = await open(page, { me: github, providers: everything });
   await page.goto("/app");
-  const choice = page.getByRole("dialog", { name: "How do you want to run work?" });
+  const choice = page.getByRole("dialog", { name: "Choose your plan" });
   await choice.getByRole("button", { name: /Connect a wallet/ }).click();
   await expect(choice).toBeHidden();
   const link = calls.find((c) => c.path === "/v0/auth/wallet/link");
@@ -167,7 +167,7 @@ test("the choice can wait: look around first", async ({ page }) => {
   await open(page, { me: github, providers: everything });
   await page.goto("/app");
   await page.getByRole("button", { name: "Look around first" }).click();
-  await expect(page.getByRole("dialog", { name: "How do you want to run work?" })).toBeHidden();
+  await expect(page.getByRole("dialog", { name: "Choose your plan" })).toBeHidden();
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 });
 

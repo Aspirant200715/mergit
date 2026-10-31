@@ -119,6 +119,11 @@
 .si-tabs {
   width: 100%;
 }
+/* Two equal halves, not two buttons sized to their text. */
+.si-tabs button {
+  flex: 1;
+  text-align: center;
+}
 .si-terms {
   text-align: center;
 }
